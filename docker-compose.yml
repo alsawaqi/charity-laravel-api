@@ -1,0 +1,47 @@
+services:
+  charity-api-app:
+    build:
+      context: .
+      dockerfile: docker/dev/php/php.dockerfile
+    # user: "1000:1000" # your UID:GID  
+    volumes:
+      - /home/abdallah644/projects/my-projects/charity/charity-laravel-api/src:/var/www/html
+    command: >
+      sh -c "chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache && php-fpm"  
+    networks:
+      - charity_net
+
+  nginx:
+    image: nginx:latest
+    ports:
+      - "8082:80"
+    volumes:
+      - /home/abdallah644/projects/my-projects/charity/charity-laravel-api/src:/var/www/html
+      - /home/abdallah644/projects/my-projects/charity/charity-laravel-api/docker/dev/nginx/default.conf:/etc/nginx/conf.d/default.conf
+    networks:
+      - charity_net
+
+  artisan:
+    build:
+      context: /home/abdallah644/projects/my-projects/charity/charity-laravel-api/src
+      dockerfile: /home/abdallah644/projects/my-projects/charity/charity-laravel-api/docker/dev/artisan/artisan.dockerfile
+    volumes:
+      - /home/abdallah644/projects/my-projects/charity/charity-laravel-api/src:/var/www/html
+    networks:
+      - charity_net
+    depends_on:
+      - charity-api-app
+
+  composer:
+    image: composer:latest
+    container_name: composer_charity
+    volumes:
+      - /home/abdallah644/projects/my-projects/charity/charity-laravel-api/src:/app
+    working_dir: /app
+    command: install
+    networks:
+      - charity_net
+
+networks:
+  charity_net:
+    external: true
