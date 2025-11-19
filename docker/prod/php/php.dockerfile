@@ -37,11 +37,13 @@ RUN apt-get update && ACCEPT_EULA=Y apt-get install -y \
 RUN pecl install pdo_sqlsrv sqlsrv \
     && docker-php-ext-enable pdo_sqlsrv sqlsrv
 
-# ✅ Install default PHP extensions
-RUN docker-php-ext-install pdo opcache
-
-# ✅ ADD THIS: install pcntl so Reverb can catch signals
-RUN docker-php-ext-install pcntl
+# ✅ Install PHP extensions (ONE place, including Postgres + pcntl)
+RUN docker-php-ext-install \
+    pdo \
+    pdo_pgsql \
+    pgsql \
+    opcache \
+    pcntl
 
 # Install Composer
 RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer

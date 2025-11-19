@@ -19,7 +19,7 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => ['http://localhost:8083'],
+    'allowed_origins' => ['http://localhost:8083','https://admin.mithqal.net'],
 
     'allowed_origins_patterns' => [],
 
