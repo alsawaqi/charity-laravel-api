@@ -4,6 +4,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\CharityTransactionsController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -20,6 +21,10 @@ Route::prefix('auth')->group(function () {
         Route::post('logout', [AuthController::class, 'logout']);
     });
 });
+
+
+Route::post('/donations', [CharityTransactionsController::class, 'store']);
+
 
 
 Route::get('/scalefusion/devices', function () {
