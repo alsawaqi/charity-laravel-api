@@ -48,7 +48,7 @@ class CharityTransactionsController extends Controller
 
                 foreach ($commissionProfileShares as $share) {
                     $percentage = (float) $share->percentage; // or $share->percentage
-                    $shareAmount = round($$request->input('amount') * $percentage / 100, 3); // round as you like
+                    $shareAmount = round($request->input('amount') * $percentage / 100, 3); // round as you like
 
                     $shareRows[] = CharityTransactionShare::create([
                         'charity_transaction_id'      => $charity->id,
