@@ -19,7 +19,8 @@ class CharityTransactionsController extends Controller
                               'total_amount' => $request->input('amount'),
                               'bank_response' => $request->input('receipt') ? json_encode($request->input('receipt')) : null,
                               'bank_transaction_id' => 1,
-                              'reference' => $request->input('id')
+                              'reference' => $request->input('id'),
+                              'status' => $request->input('status'),
                 ]);
 
 
