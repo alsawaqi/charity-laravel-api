@@ -11,4 +11,6 @@ class CharityTransactions extends Model
     protected $table = 'charity_transactions';
 
     protected $guarded = [];
+
+    
 }

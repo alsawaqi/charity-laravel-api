@@ -10,5 +10,10 @@ class CommissionProfiles extends Model
 
       protected $table = 'commission_profiles';
 
-    protected $guarded = [];
+      protected $guarded = [];
+
+      public function shares()
+      {
+          return $this->hasMany(CommissionProfilesShares::class, 'commission_profile_id');
+      }
 }

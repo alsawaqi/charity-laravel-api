@@ -6,7 +6,13 @@ use Illuminate\Database\Eloquent\Model;
 
 class CommissionProfilesShares extends Model
 {
-    protected $table = 'commission_profiles_shares';
+    protected $table = 'commission_profile_shares';
 
     protected $guarded = [];
+
+
+    public function commissionProfile()
+    {
+        return $this->belongsTo(CommissionProfiles::class, 'commission_profile_id');
+    }
 }
