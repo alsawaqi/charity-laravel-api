@@ -2,8 +2,13 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\CharityTransactions;
+use App\Models\Devices;
 use Illuminate\Http\Request;
+use App\Models\CommissionProfiles;
+use Illuminate\Support\Facades\DB;
+use App\Models\CharityTransactions;
+use App\Models\CharityTransactionShare;
+use App\Models\CommissionProfilesShares;
 
 class CharityTransactionsController extends Controller
 {
