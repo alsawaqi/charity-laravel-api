@@ -13,12 +13,21 @@ class CharityTransactionsController extends Controller
     public function store(Request $request)
     {  
 
-          CharityTransactions::create([
+      $charity =   CharityTransactions::create([
                               'device_id' => 1,
                               'commission_profile_id' => 1,
-                              'amount' => $request->input('amount'),
+                              'total_amount' => $request->input('amount'),
+                              'bank_response' => $request->input('receipt') ? json_encode($request->input('receipt')) : null,
                               'bank_transaction_id' => 1,
+                              'reference' => $request->input('id')
                 ]);
+
+
+                return response()->json([
+                'success' => true,
+                'data'    =>$charity,
+                'message' => 'charity successfully',
+            ], 201);
       
     }   
 }
