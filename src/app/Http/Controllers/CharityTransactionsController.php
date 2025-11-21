@@ -12,7 +12,16 @@ use App\Models\CommissionProfilesShares;
 
 class CharityTransactionsController extends Controller
 {
-    //
+  public function index()
+    {
+        $transactions = CharityTransactions::with(['device',  'device.devicemodel','charityLocation','bank' , 'charitytransactionshares','charitytransactionshares.comissionProfileShare','charitytransactionshares.comissionProfileShare.organization'])->get();
+
+        return response()->json([
+            'success' => true,
+            'data'    => $transactions,
+            'message' => 'Charity transactions retrieved successfully.',
+        ], 200);
+    }
 
 
     public function store(Request $request)

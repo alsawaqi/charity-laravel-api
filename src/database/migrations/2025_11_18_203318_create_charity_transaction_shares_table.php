@@ -27,7 +27,7 @@ return new class extends Migration
             // Snapshot of which organization receives this share
           
  
-            $table->decimal('amount', 12, 2);               // computed: total * percentage / 100
+            $table->decimal('amount', 12, 3);               // computed: total * percentage / 100
 
             $table->timestamps();
 

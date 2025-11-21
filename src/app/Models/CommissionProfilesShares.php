@@ -15,4 +15,9 @@ class CommissionProfilesShares extends Model
     {
         return $this->belongsTo(CommissionProfiles::class, 'commission_profile_id');
     }
+
+    public function organization()
+    {
+        return $this->belongsTo(Organization::class, 'organization_id');
+    }
 }

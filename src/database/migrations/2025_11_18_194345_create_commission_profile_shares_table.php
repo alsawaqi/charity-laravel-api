@@ -35,7 +35,7 @@ return new class extends Migration
             $table->timestamps();
 
             // Avoid duplicate labels within the same profile
-            $table->unique(['commission_profile_id', 'label'], 'commission_profile_label_unique');
+           
  
         });
     }

@@ -8,7 +8,12 @@ class Devices extends Model
 {
     //
 
-     protected $table = 'devices';
+    protected $table = 'devices';
 
     protected $guarded = [];
+
+    public function DeviceModel()
+    {
+        return $this->belongsTo(DeviceModel::class, 'device_model_id');
+    }
 }

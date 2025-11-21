@@ -26,7 +26,7 @@ return new class extends Migration
                   ->nullOnDelete();
 
             // Total amount from the bank app (the full donation)
-            $table->decimal('total_amount', 12, 2); // you said "double" but decimal is safer for money
+            $table->decimal('total_amount', 12, 3); // you said "double" but decimal is safer for money
 
             // Raw JSON response from bank app
             $table->jsonb('bank_response')->nullable(); // Postgres jsonb

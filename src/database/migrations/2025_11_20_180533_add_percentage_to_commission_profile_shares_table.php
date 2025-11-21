@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::table('commission_profile_shares', function (Blueprint $table) {
             
-             $table->decimal('percentage', 5, 2)->default(0.00)->after('label');
+             $table->decimal('percentage', 5, 3)->default(0.00)->after('label');
         });
     }
 
