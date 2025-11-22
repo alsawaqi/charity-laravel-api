@@ -61,6 +61,8 @@ class CharityTransactionsController extends Controller
 
                     if ($reason === 'SUCCESS') {
                         $status = 'success';
+                    }else if ($reason === 'Transaction cancelled by user') {
+                        $status = 'Cancelled';
                     }
                 }
 
@@ -74,7 +76,7 @@ class CharityTransactionsController extends Controller
                     'bank_response' => $receipt,
                     'bank_transaction_id' => $device->bank_id,
 
-                    'status' => $request->input('status'),
+                    'status' => $status,
                     'country_id' => $device->country_id,
                     'region_id' => $device->region_id,
                     'city_id' => $device->city_id,
