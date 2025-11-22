@@ -27,11 +27,12 @@ Route::prefix('auth')->group(function () {
 Route::get('/donations', [CharityTransactionsController::class, 'index']);
 Route::post('/donations', [CharityTransactionsController::class, 'store']);
 
-
-
 Route::get('/stats/charity/daily', [CharityStatsController::class, 'dailyTotals']);
 Route::get('/stats/charity/totals', [CharityStatsController::class, 'totals']);
 Route::get('/stats/charity/top-devices', [CharityStatsController::class, 'topDevices']);
+
+
+Route::get('/ai-dashboard-search', [CharityStatsController::class, 'aiDashboardSearch']);
 
 
 Route::get('/scalefusion/devices', function () {
@@ -44,9 +45,6 @@ Route::get('/scalefusion/devices', function () {
 
     return $response->json();
 });
-
-
-
 
 Route::get('/scalefusion/device', function (Request $request) {
 
