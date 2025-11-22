@@ -28,6 +28,10 @@ return [
 
     'env' => env('APP_ENV', 'production'),
 
+
+
+    'timezone' => 'Asia/Muscat',
+
     /*
     |--------------------------------------------------------------------------
     | Application Debug Mode
