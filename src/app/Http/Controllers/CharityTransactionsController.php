@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Devices;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use App\Models\CommissionProfiles;
 use Illuminate\Support\Facades\DB;
 use App\Models\CharityTransactions;
@@ -14,13 +15,89 @@ class CharityTransactionsController extends Controller
 {
     public function index()
     {
-        $transactions = CharityTransactions::with(['device',  'device.devicemodel', 'charityLocation', 'bank', 'charitytransactionshares', 'charitytransactionshares.comissionProfileShare', 'charitytransactionshares.comissionProfileShare.organization'])->get();
+        $transactions = CharityTransactions::with(['device',  'device.devicemodel', 'charityLocation', 'bank', 'charitytransactionshares', 'charitytransactionshares.comissionProfileShare', 'charitytransactionshares.comissionProfileShare.organization'])
+            ->where('created_at',   Carbon::now())
+            ->get();
 
         return response()->json([
             'success' => true,
             'data'    => $transactions,
             'message' => 'Charity transactions retrieved successfully.',
         ], 200);
+    }
+
+
+      public function index_all(Request $request)
+    {
+        $range = $request->input('range', '7d'); // 7d, 30d, 6m, custom
+        $from  = $request->input('from');
+        $to    = $request->input('to');
+
+        $end = Carbon::today()->endOfDay();
+
+        switch ($range) {
+            case '30d':
+                $start = $end->copy()->subDays(29)->startOfDay();
+                break;
+
+            case '6m':
+                $start = $end->copy()->subMonthsNoOverflow(6)->startOfDay();
+                break;
+
+            case 'custom':
+                if (!$from || !$to) {
+                    return response()->json([
+                        'message' => 'From and to dates are required for custom range',
+                    ], 422);
+                }
+                $start = Carbon::parse($from)->startOfDay();
+                $end   = Carbon::parse($to)->endOfDay();
+                break;
+
+            case '7d':
+            default:
+                $start = $end->copy()->subDays(6)->startOfDay();
+                break;
+        }
+
+        $base = CharityTransactions::with([
+               'device',
+                'device.DeviceModel',
+                'device.DeviceModel.DeviceBrand',  // or DeviceModel.DeviceBrand if you want
+                'bank',
+                'charityLocation',
+            ])
+            ->whereBetween('created_at', [$start, $end]);
+
+        // success + failed queries
+        $successQuery = (clone $base)->where('status', 'success');
+        $failedQuery  = (clone $base)->where('status', 'fail');
+
+        $successAmount = (clone $successQuery)->sum('total_amount');
+        $successCount  = (clone $successQuery)->count();
+
+        $failedAmount  = (clone $failedQuery)->sum('total_amount');
+        $failedCount   = (clone $failedQuery)->count();
+
+        // For the table: all success+failed in one list
+        $transactions = (clone $base)
+            ->whereIn('status', ['success', 'fail'])
+            ->orderByDesc('created_at')
+            ->get();
+
+        return response()->json([
+            'totals' => [
+                'success' => [
+                    'amount' => (float) $successAmount,
+                    'count'  => (int) $successCount,
+                ],
+                'failed' => [
+                    'amount' => (float) $failedAmount,
+                    'count'  => (int) $failedCount,
+                ],
+            ],
+            'transactions' => $transactions,
+        ]);
     }
 
 
@@ -61,7 +138,7 @@ class CharityTransactionsController extends Controller
 
                     if ($reason === 'SUCCESS') {
                         $status = 'success';
-                    }else if ($reason === 'Transaction cancelled by user') {
+                    } else if ($reason === 'Transaction cancelled by user') {
                         $status = 'Cancelled';
                     }
                 }
