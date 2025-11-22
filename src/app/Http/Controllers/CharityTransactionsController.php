@@ -12,9 +12,9 @@ use App\Models\CommissionProfilesShares;
 
 class CharityTransactionsController extends Controller
 {
-  public function index()
+    public function index()
     {
-        $transactions = CharityTransactions::with(['device',  'device.devicemodel','charityLocation','bank' , 'charitytransactionshares','charitytransactionshares.comissionProfileShare','charitytransactionshares.comissionProfileShare.organization'])->get();
+        $transactions = CharityTransactions::with(['device',  'device.devicemodel', 'charityLocation', 'bank', 'charitytransactionshares', 'charitytransactionshares.comissionProfileShare', 'charitytransactionshares.comissionProfileShare.organization'])->get();
 
         return response()->json([
             'success' => true,
@@ -36,6 +36,34 @@ class CharityTransactionsController extends Controller
                 $commissionProfileShares = CommissionProfilesShares::where('commission_profile_id', $commissionProfile->id)->get();
 
 
+                $rawReceipt = $request->input('receipt');
+
+                // Normalize: if it's already an array (from JSON body), use it,
+                // if it's a JSON string, decode it.
+                if (is_string($rawReceipt)) {
+                    $receipt = json_decode($rawReceipt, true);
+
+                    if (json_last_error() !== JSON_ERROR_NONE) {
+                        $receipt = null; // or handle error
+                    }
+                } elseif (is_array($rawReceipt)) {
+                    $receipt = $rawReceipt;
+                } else {
+                    $receipt = null;
+                }
+
+                // Default
+                $status = 'fail';
+
+                if ($receipt && isset($receipt['reason'])) {
+                    // Normalize to upper to be safe
+                    $reason = strtoupper((string) $receipt['reason']);
+
+                    if ($reason === 'SUCCESS') {
+                        $status = 'success';
+                    }
+                }
+
 
 
 
@@ -43,14 +71,16 @@ class CharityTransactionsController extends Controller
                     'device_id' => $device->id,
                     'commission_profile_id' =>  $commissionProfile->id,
                     'total_amount' => $request->input('amount'),
-                    'bank_response' => $request->input('receipt') ? json_encode($request->input('receipt')) : null,
-                    'bank_transaction_id' => 1,
+                    'bank_response' => $receipt,
+                    'bank_transaction_id' => $device->bank_id,
 
                     'status' => $request->input('status'),
                     'country_id' => $device->country_id,
                     'region_id' => $device->region_id,
                     'city_id' => $device->city_id,
                     'charity_location_id' => $device->charity_location_id,
+                    'latitude' => $request->input('latitude') ?? 0.00,
+                    'longitude' => $request->input('longitude') ?? 0.00,
                 ]);
 
                 $shareRows = [];

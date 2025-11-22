@@ -12,18 +12,18 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('charity_transactions', function (Blueprint $table) {
-               $table->id();
+            $table->id();
 
             // Device that generated this transaction
             $table->foreignId('device_id')
-                  ->constrained('devices')
-                  ->cascadeOnDelete();
+                ->constrained('devices')
+                ->cascadeOnDelete();
 
             // Snapshot of commission profile at the time of transaction
             $table->foreignId('commission_profile_id')
-                  ->nullable()
-                  ->constrained('commission_profiles')
-                  ->nullOnDelete();
+                ->nullable()
+                ->constrained('commission_profiles')
+                ->nullOnDelete();
 
             // Total amount from the bank app (the full donation)
             $table->decimal('total_amount', 12, 3); // you said "double" but decimal is safer for money
@@ -32,7 +32,13 @@ return new class extends Migration
             $table->jsonb('bank_response')->nullable(); // Postgres jsonb
 
             // Optional external identifiers
-            $table->string('bank_transaction_id')->nullable(); // txn id from bank app if available
+
+
+            $table->foreignId('bank_transaction_id')
+                ->nullable()
+                ->constrained('banks')
+                ->nullOnDelete();
+
             $table->string('reference')->nullable();           // internal reference if you want
 
             // pending / success / failed / refunded / etc.
@@ -43,7 +49,6 @@ return new class extends Migration
             $table->timestamps();
 
             $table->index(['device_id', 'status'], 'charity_transactions_device_status_index');
-       
         });
     }
 
