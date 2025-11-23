@@ -15,8 +15,13 @@ class CharityTransactionsController extends Controller
 {
     public function index()
     {
-        $transactions = CharityTransactions::with(['device',  'device.devicemodel', 'charityLocation', 'bank', 'charitytransactionshares', 'charitytransactionshares.comissionProfileShare', 'charitytransactionshares.comissionProfileShare.organization'])
-            ->where('created_at',   Carbon::now())
+
+        $today = Carbon::now('Asia/Muscat')->toDateString();
+
+        $transactions = CharityTransactions::with(['device', 
+                                                   'device.devicemodel', 'charityLocation', 'bank', 'charitytransactionshares', 'charitytransactionshares.comissionProfileShare', 'charitytransactionshares.comissionProfileShare.organization'])
+             ->whereDate('created_at', $today)
+             ->orderByDesc('created_at')
             ->get();
 
         return response()->json([
