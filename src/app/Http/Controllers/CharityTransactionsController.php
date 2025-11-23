@@ -66,6 +66,9 @@ class CharityTransactionsController extends Controller
                 'device.DeviceModel.DeviceBrand',  // or DeviceModel.DeviceBrand if you want
                 'bank',
                 'charityLocation',
+                'charitytransactionshares',
+                'charitytransactionshares.comissionProfileShare',
+                'charitytransactionshares.comissionProfileShare.organization',
             ])
             ->whereBetween('created_at', [$start, $end]);
 
