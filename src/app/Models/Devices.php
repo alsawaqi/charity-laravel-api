@@ -22,4 +22,10 @@ class Devices extends Model
     {
         return $this->belongsTo(DeviceModel::class, 'device_model_id');
     }
+
+
+     public function charityLocation()
+    {
+        return $this->belongsTo(CharityLocation::class, 'charity_location_id');
+    }
 }

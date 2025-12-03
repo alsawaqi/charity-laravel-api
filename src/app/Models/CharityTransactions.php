@@ -54,4 +54,27 @@ class CharityTransactions extends Model
     {
         return $this->belongsTo(CharityLocation::class, 'charity_location_id');
     }
+
+
+
+    public function organization()
+    {
+        return $this->belongsTo(Organization::class, 'organization_id');
+    }
+
+
+
+    public function scopeVisibleForUser($query, User $user)
+    {
+        $org = $user->organization;
+
+        if (! $org) {
+            return $query->whereRaw('1 = 0'); // no org = no data
+        }
+
+        $org->load('children.children.children'); // or deeper if needed
+        $orgIds = $org->descendantsAndSelfIds();
+
+        return $query->whereIn('organization_id', $orgIds);
+    }
 }

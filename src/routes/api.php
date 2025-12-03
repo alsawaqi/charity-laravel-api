@@ -39,7 +39,11 @@ Route::prefix('stats/charity')->group(function () {
 });
 
 Route::get('/donations', [CharityTransactionsController::class, 'index']);
+
+Route::middleware('auth:sanctum')->group(function () {
 Route::get('/stats/charity/transactions', [CharityTransactionsController::class, 'index_all']);
+
+});
 Route::post('/donations', [CharityTransactionsController::class, 'store']);
 
 

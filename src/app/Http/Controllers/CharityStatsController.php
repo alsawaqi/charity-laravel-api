@@ -107,20 +107,20 @@ class CharityStatsController extends Controller
 
 
         // ✅ Sales by hour (success only)
-        
+
 
 
         $byHourRaw = (clone $baseQuery)
-    ->where('status', 'success')
-    ->selectRaw('
-        ((EXTRACT(DOW FROM created_at)::int + 6) % 7) as weekday_index, 
-        EXTRACT(HOUR FROM created_at)::int as hour_of_day,       
-        SUM(total_amount) as total_amount
-    ')
-    ->groupBy('weekday_index', 'hour_of_day')
-    ->orderBy('weekday_index')
-    ->orderBy('hour_of_day')
-    ->get();
+            ->where('status', 'success')
+            ->selectRaw('
+                        ((EXTRACT(DOW FROM created_at)::int + 6) % 7) as weekday_index, 
+                        EXTRACT(HOUR FROM created_at)::int as hour_of_day,       
+                        SUM(total_amount) as total_amount
+                    ')
+            ->groupBy('weekday_index', 'hour_of_day')
+            ->orderBy('weekday_index')
+            ->orderBy('hour_of_day')
+            ->get();
 
 
         // We always want labels Monday..Sunday

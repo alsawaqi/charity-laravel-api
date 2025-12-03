@@ -3,11 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\Devices;
+use App\Models\Organization;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use App\Models\CommissionProfiles;
 use Illuminate\Support\Facades\DB;
 use App\Models\CharityTransactions;
+use Illuminate\Support\Facades\Auth;
 use App\Models\CharityTransactionShare;
 use App\Models\CommissionProfilesShares;
 
@@ -18,10 +20,17 @@ class CharityTransactionsController extends Controller
 
         $today = Carbon::now('Asia/Muscat')->toDateString();
 
-        $transactions = CharityTransactions::with(['device', 
-                                                   'device.devicemodel', 'charityLocation', 'bank', 'charitytransactionshares', 'charitytransactionshares.comissionProfileShare', 'charitytransactionshares.comissionProfileShare.organization'])
-             ->whereDate('created_at', $today)
-             ->orderByDesc('created_at')
+        $transactions = CharityTransactions::with([
+            'device',
+            'device.devicemodel',
+            'charityLocation',
+            'bank',
+            'charitytransactionshares',
+            'charitytransactionshares.comissionProfileShare',
+            'charitytransactionshares.comissionProfileShare.organization'
+        ])
+            ->whereDate('created_at', $today)
+            ->orderByDesc('created_at')
             ->get();
 
         return response()->json([
@@ -32,13 +41,34 @@ class CharityTransactionsController extends Controller
     }
 
 
-      public function index_all(Request $request)
+    public function index_all(Request $request)
     {
         $range = $request->input('range', '7d'); // 7d, 30d, 6m, custom
         $from  = $request->input('from');
         $to    = $request->input('to');
 
         $end = Carbon::today()->endOfDay();
+
+
+        // 👇 get the org of the logged-in user
+        $user = $request->user(); // or Auth::user()
+
+
+        if (!$user) {
+            return response()->json([
+                'message' => $request->user(),
+         
+            ], 200);
+        }
+
+        /** @var \App\Models\Organization $org */
+        $org = Organization::with('children')->findOrFail($user->organization_id);
+
+        // ✅ Parent sees its children; child never sees parent
+        $visibleOrgIds = $org->descendantsAndSelfIds();
+
+
+      
 
         switch ($range) {
             case '30d':
@@ -66,16 +96,18 @@ class CharityTransactionsController extends Controller
         }
 
         $base = CharityTransactions::with([
-               'device',
-                'device.DeviceModel',
-                'device.DeviceModel.DeviceBrand',  // or DeviceModel.DeviceBrand if you want
-                'bank',
-                'charityLocation',
-                'charitytransactionshares',
-                'charitytransactionshares.comissionProfileShare',
-                'charitytransactionshares.comissionProfileShare.organization',
-            ])
-            ->whereBetween('created_at', [$start, $end]);
+            'device',
+            'device.DeviceModel',
+            'device.DeviceModel.DeviceBrand',  // or DeviceModel.DeviceBrand if you want
+            'bank',
+            'charityLocation',
+            'charitytransactionshares',
+            'charitytransactionshares.comissionProfileShare',
+            'charitytransactionshares.comissionProfileShare.organization',
+        ])
+            ->whereBetween('created_at', [$start, $end])
+            ->whereIn('organization_id', $visibleOrgIds);
+
 
         // success + failed queries
         $successQuery = (clone $base)->where('status', 'success');
@@ -152,6 +184,7 @@ class CharityTransactionsController extends Controller
                 }
 
 
+                $organizationId = optional($device->charityLocation)->organization_id;
 
 
                 $charity =   CharityTransactions::create([
@@ -166,6 +199,8 @@ class CharityTransactionsController extends Controller
                     'region_id' => $device->region_id,
                     'city_id' => $device->city_id,
                     'charity_location_id' => $device->charity_location_id,
+
+                    'organization_id'       => $organizationId,
                     'latitude' => $request->input('latitude') ?? 0.00,
                     'longitude' => $request->input('longitude') ?? 0.00,
                 ]);
