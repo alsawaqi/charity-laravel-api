@@ -8,7 +8,17 @@ class CommissionProfilesShares extends Model
 {
     protected $table = 'commission_profile_shares';
 
-    protected $guarded = [];
+        protected $fillable = [
+        'commission_profile_id',
+        'organization_id',
+        'label',
+        'percentage',
+        'sort_order',
+    ];
+
+    protected $casts = [
+        'percentage' => 'decimal:3',
+    ];
 
 
     public function commissionProfile()

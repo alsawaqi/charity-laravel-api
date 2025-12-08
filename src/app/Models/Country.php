@@ -7,7 +7,17 @@ use Illuminate\Database\Eloquent\Model;
 class Country extends Model
 {
     protected $table = 'countries';
-    protected $guarded = [];
+    
+    protected $fillable = [
+        'name',
+        'iso_code',
+        'phone_code',
+        'is_active',
+    ];
+
+    protected $casts = [
+        'is_active' => 'boolean',
+    ];
 
     public function regions()
     {

@@ -3,14 +3,20 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class DeviceModel extends Model
 {
     //
+    use HasFactory;
 
     protected $table = 'device_models';
 
-    protected $guarded = [];
+    protected $fillable = [
+        'device_brand_id',
+        'name',
+    ];
+
 
     public function devices()
     {

@@ -7,7 +7,17 @@ use Illuminate\Database\Eloquent\Model;
 class Region extends Model
 {
     protected $table = 'regions';
-    protected $guarded = [];
+    protected $fillable = [
+        'country_id',
+        'name',
+        'type',
+        'code',
+        'is_active',
+    ];
+
+    protected $casts = [
+        'is_active' => 'boolean',
+    ];
 
     public function country()
     {
@@ -25,4 +35,3 @@ class Region extends Model
         return $this->hasMany(CharityLocation::class, 'region_id');
     }
 }
-
