@@ -9,13 +9,14 @@ use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\RegionController;
 use App\Http\Controllers\CountryController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\DistrictController;
 use App\Http\Controllers\DeviceBrandController;
 use App\Http\Controllers\DeviceModelController;
 use App\Http\Controllers\CharityStatsController;
 use App\Http\Controllers\MainLocationController;
 use App\Http\Controllers\OrganizationController;
-use App\Http\Controllers\LocationLookupController;
  
+use App\Http\Controllers\LocationLookupController;
 use App\Http\Controllers\CharityLocationController;
 use App\Http\Controllers\CommissionProfileController;
 use App\Http\Controllers\CharityDeviceStatusController;
@@ -51,6 +52,10 @@ Route::post('/countries', [CountryController::class, 'store']);
 Route::get('/countries/{country}', [CountryController::class, 'show']);
 Route::put('/countries/{country}', [CountryController::class, 'update']);
 Route::delete('/countries/{country}', [CountryController::class, 'destroy']);
+
+
+
+Route::apiResource('districts', DistrictController::class);
 
 
 
@@ -108,6 +113,8 @@ Route::post('/device-models', [DeviceModelController::class, 'store']);
 Route::put('/device-models/{deviceModel}', [DeviceModelController::class, 'update']);
 Route::delete('/device-models/{deviceModel}', [DeviceModelController::class, 'destroy']);
 
+
+Route::get('/locations/districts', [LocationLookupController::class, 'districts']);
 Route::get('/locations/countries', [LocationLookupController::class, 'countries']);
 Route::get('/locations/regions', [LocationLookupController::class, 'regions']);   // ?country_id=...
 Route::get('/locations/cities', [LocationLookupController::class, 'cities']);   

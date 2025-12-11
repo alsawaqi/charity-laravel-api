@@ -20,6 +20,7 @@ class MainLocationController extends Controller
                 'region:id,name',
                 'city:id,name',
                 'organization:id,name',
+                'district:id,name',
             ]);
 
         if ($search) {
@@ -60,6 +61,7 @@ class MainLocationController extends Controller
             'region_id'       => ['nullable', 'exists:regions,id'],
             'city_id'         => ['nullable', 'exists:cities,id'],
             'organization_id' => ['nullable', 'exists:organizations,id'],
+            'district_id'    => ['nullable', 'exists:districts,id'],
             'name'            => ['required', 'string', 'max:255'],
         ]);
 
@@ -70,6 +72,7 @@ class MainLocationController extends Controller
                 'country:id,name',
                 'region:id,name',
                 'city:id,name',
+                'district:id,name',
                 'organization:id,name',
             ]),
             201
@@ -95,6 +98,7 @@ class MainLocationController extends Controller
             'region_id'       => ['nullable', 'exists:regions,id'],
             'city_id'         => ['nullable', 'exists:cities,id'],
             'organization_id' => ['nullable', 'exists:organizations,id'],
+            'district_id'    => ['nullable', 'exists:districts,id'],
             'name'            => ['required', 'string', 'max:255'],
         ]);
 
@@ -105,6 +109,7 @@ class MainLocationController extends Controller
                 'country:id,name',
                 'region:id,name',
                 'city:id,name',
+                'district:id,name',
                 'organization:id,name',
             ])
         );

@@ -2,9 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Country;
-use App\Models\Region;
 use App\Models\City;
+use App\Models\Region;
+use App\Models\Country;
+use App\Models\District;
 use Illuminate\Http\Request;
 
 class LocationLookupController extends Controller
@@ -31,16 +32,39 @@ class LocationLookupController extends Controller
         return response()->json($query->get());
     }
 
-    public function cities(Request $request)
+
+    public function districts(Request $request)
     {
-        $regionId = $request->query('region_id');
+      $query = District::query()->orderBy('name');
 
-        $query = City::select('id', 'name', 'region_id')->orderBy('name');
+      if ($request->filled('country_id')) {
+          $query->where('country_id', $request->integer('country_id'));
+      }
+      if ($request->filled('region_id')) {
+          $query->where('region_id', $request->integer('region_id'));
+      }
 
-        if ($regionId) {
-            $query->where('region_id', $regionId);
-        }
+      return response()->json(
+          $query->get(['id', 'name'])
+      );
+    }
 
-        return response()->json($query->get());
+     public function cities(Request $request)
+    {
+      $query = City::query()->orderBy('name');
+
+      if ($request->filled('country_id')) {
+          $query->where('country_id', $request->integer('country_id'));
+      }
+      if ($request->filled('region_id')) {
+          $query->where('region_id', $request->integer('region_id'));
+      }
+      if ($request->filled('district_id')) {
+          $query->where('district_id', $request->integer('district_id'));
+      }
+
+      return response()->json(
+          $query->get(['id', 'name'])
+      );
     }
 }

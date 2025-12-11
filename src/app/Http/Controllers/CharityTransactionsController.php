@@ -57,7 +57,7 @@ class CharityTransactionsController extends Controller
         if (!$user) {
             return response()->json([
                 'message' => $request->user(),
-         
+
             ], 200);
         }
 
@@ -68,7 +68,7 @@ class CharityTransactionsController extends Controller
         $visibleOrgIds = $org->descendantsAndSelfIds();
 
 
-      
+
 
         switch ($range) {
             case '30d':
@@ -199,6 +199,7 @@ class CharityTransactionsController extends Controller
                     'region_id' => $device->region_id,
                     'city_id' => $device->city_id,
                     'charity_location_id' => $device->charity_location_id,
+                    'district_id' => $device->district_id,
 
                     'organization_id'       => $organizationId,
                     'latitude' => $request->input('latitude') ?? 0.00,

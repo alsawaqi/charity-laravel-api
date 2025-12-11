@@ -18,6 +18,7 @@ class Devices extends Model
         'country_id',
         'region_id',
         'city_id',
+        'district_id',
         'charity_location_id',
         'commission_profile_id',
         'kiosk_id',
@@ -56,6 +57,11 @@ class Devices extends Model
     public function region()
     {
         return $this->belongsTo(Region::class, 'region_id');
+    }
+
+    public function district()
+    {
+        return $this->belongsTo(District::class, 'district_id');
     }
 
     public function city()

@@ -7,7 +7,7 @@ use App\Models\CharityLocation;
 
 class CharityLocationController extends Controller
 {
-     public function index(Request $request)
+    public function index(Request $request)
     {
         $search   = $request->query('search');
         $sortBy   = $request->query('sortBy', 'id');
@@ -18,6 +18,7 @@ class CharityLocationController extends Controller
             ->with([
                 'country:id,name',
                 'region:id,name',
+                'district:id,name',          // 👈 NEW
                 'city:id,name',
                 'organization:id,name',
                 'main_location:id,name',
@@ -54,6 +55,7 @@ class CharityLocationController extends Controller
             $charityLocation->load([
                 'country:id,name',
                 'region:id,name',
+                'district:id,name',          // 👈 NEW
                 'city:id,name',
                 'organization:id,name',
                 'main_location:id,name',
@@ -66,9 +68,10 @@ class CharityLocationController extends Controller
         $validated = $request->validate([
             'country_id'      => ['required', 'exists:countries,id'],
             'region_id'       => ['nullable', 'exists:regions,id'],
+            'district_id'     => ['nullable', 'exists:districts,id'],  // 👈 NEW
             'city_id'         => ['nullable', 'exists:cities,id'],
             'organization_id' => ['nullable', 'exists:organizations,id'],
-            'main_location_id'=> ['nullable', 'exists:main_locations,id'],
+            'main_location_id' => ['nullable', 'exists:main_locations,id'],
 
             'name'                   => ['required', 'string', 'max:255'],
             'phone'                  => ['nullable', 'string', 'max:30'],
@@ -89,6 +92,7 @@ class CharityLocationController extends Controller
             $charityLocation->load([
                 'country:id,name',
                 'region:id,name',
+                'district:id,name',          // 👈 NEW
                 'city:id,name',
                 'organization:id,name',
                 'main_location:id,name',
@@ -102,9 +106,10 @@ class CharityLocationController extends Controller
         $validated = $request->validate([
             'country_id'      => ['required', 'exists:countries,id'],
             'region_id'       => ['nullable', 'exists:regions,id'],
+            'district_id'     => ['nullable', 'exists:districts,id'],  // 👈 NEW
             'city_id'         => ['nullable', 'exists:cities,id'],
             'organization_id' => ['nullable', 'exists:organizations,id'],
-            'main_location_id'=> ['nullable', 'exists:main_locations,id'],
+            'main_location_id' => ['nullable', 'exists:main_locations,id'],
 
             'name'                   => ['required', 'string', 'max:255'],
             'phone'                  => ['nullable', 'string', 'max:30'],
@@ -125,6 +130,7 @@ class CharityLocationController extends Controller
             $charityLocation->load([
                 'country:id,name',
                 'region:id,name',
+                'district:id,name',          // 👈 NEW
                 'city:id,name',
                 'organization:id,name',
                 'main_location:id,name',
@@ -140,7 +146,4 @@ class CharityLocationController extends Controller
             'message' => 'Charity location deleted successfully',
         ]);
     }
-
-
-
 }

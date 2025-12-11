@@ -16,6 +16,7 @@ class MainLocation extends Model
         'region_id',
         'city_id',
         'organization_id',
+        'district_id',
         'name',
     ];
 
@@ -29,10 +30,18 @@ class MainLocation extends Model
         return $this->belongsTo(Region::class);
     }
 
+
+    public function district()
+    {
+        return $this->belongsTo(District::class);
+    }
+
     public function city()
     {
         return $this->belongsTo(City::class);
     }
+
+
 
     public function organization()
     {

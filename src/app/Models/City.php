@@ -10,6 +10,7 @@ class City extends Model
     protected $fillable = [
         'region_id',
         'name',
+        'district_id',
         'postal_code',
         'is_active',
     ];
@@ -21,6 +22,12 @@ class City extends Model
     public function region()
     {
         return $this->belongsTo(Region::class, 'region_id');
+    }
+
+
+    public function district()
+    {
+        return $this->belongsTo(District::class);
     }
 
     public function charityLocations()

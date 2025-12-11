@@ -28,6 +28,7 @@ class CharityLocation extends Model
         'country_id',
         'region_id',
         'city_id',
+        'district_id',  
         'organization_id',
         'main_location_id',
     ];
@@ -50,6 +51,12 @@ class CharityLocation extends Model
     {
         return $this->belongsTo(Region::class, 'region_id');
     }
+
+
+    public function district()
+{
+    return $this->belongsTo(District::class);
+}
 
      public function organization()
     {

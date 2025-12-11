@@ -31,6 +31,7 @@ class DeviceController extends Controller
                     'bank',
                     'country',
                     'region',
+                    'district',
                     'city',
                     'charityLocation',
                     'commissionProfile',
@@ -84,6 +85,7 @@ class DeviceController extends Controller
             'deviceModel',
             'bank',
             'country',
+            'district',
             'region',
             'city',
             'charityLocation',
@@ -108,6 +110,7 @@ class DeviceController extends Controller
             'country_id'            => ['required', 'exists:countries,id'],
             'region_id'             => ['nullable', 'exists:regions,id'],
             'city_id'               => ['nullable', 'exists:cities,id'],
+            'district_id'           => ['nullable', 'exists:districts,id'],
             'charity_location_id'   => ['nullable', 'exists:charity_locations,id'],
 
             'commission_profile_id' => ['nullable', 'exists:commission_profiles,id'],
@@ -132,6 +135,7 @@ class DeviceController extends Controller
                 'deviceModel',
                 'bank',
                 'country',
+                'district',
                 'region',
                 'city',
                 'charityLocation',
@@ -158,6 +162,7 @@ class DeviceController extends Controller
 
             'country_id'            => ['required', 'exists:countries,id'],
             'region_id'             => ['nullable', 'exists:regions,id'],
+            'district_id'           => ['nullable', 'exists:districts,id'],
             'city_id'               => ['nullable', 'exists:cities,id'],
             'charity_location_id'   => ['nullable', 'exists:charity_locations,id'],
 
@@ -187,6 +192,7 @@ class DeviceController extends Controller
                 'deviceModel',
                 'bank',
                 'country',
+                'district',
                 'region',
                 'city',
                 'charityLocation',
