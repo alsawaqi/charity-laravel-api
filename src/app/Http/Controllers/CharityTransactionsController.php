@@ -61,11 +61,30 @@ class CharityTransactionsController extends Controller
             ], 200);
         }
 
-        /** @var \App\Models\Organization $org */
-        $org = Organization::with('children')->findOrFail($user->organization_id);
 
-        // ✅ Parent sees its children; child never sees parent
-        $visibleOrgIds = $org->descendantsAndSelfIds();
+        $orgId = $user->organization_id;
+
+// If user has no organization, decide what to do:
+if (! $orgId) {
+    // OPTION A: Super admin = see all orgs
+    $visibleOrgIds = Organization::pluck('id')->all();
+
+    // OPTION B: No org assigned -> error:
+    // return response()->json(['message' => 'User has no organization assigned'], 422);
+} else {
+    $org = Organization::with('children')->find($orgId);
+
+    if (! $org) {
+        // The org_id points to a non-existing organization
+        return response()->json([
+            'message' => "Organization not found for id {$orgId}",
+        ], 404);
+    }
+
+    // Use your helper on the found org
+    $visibleOrgIds = $org->descendantsAndSelfIds();
+}
+        
 
 
 
