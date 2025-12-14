@@ -24,6 +24,7 @@ class CharityTransactionsController extends Controller
             'device',
             'device.devicemodel',
             'charityLocation',
+            'charityLocation.main_location',
             'bank',
             'charitytransactionshares',
             'charitytransactionshares.comissionProfileShare',
@@ -120,6 +121,7 @@ if (! $orgId) {
             'device.DeviceModel.DeviceBrand',  // or DeviceModel.DeviceBrand if you want
             'bank',
             'charityLocation',
+            'charityLocation.main_location',
             'charitytransactionshares',
             'charitytransactionshares.comissionProfileShare',
             'charitytransactionshares.comissionProfileShare.organization',
