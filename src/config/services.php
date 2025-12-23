@@ -18,6 +18,13 @@ return [
         'key' => env('POSTMARK_API_KEY'),
     ],
 
+
+
+    'scalefusion' => [
+        'token' => env('SCALEFUSION_TOKEN'),
+        'base_url' => env('SCALEFUSION_BASE_URL', 'https://api.scalefusion.com/api/v3'),
+    ],
+
     'resend' => [
         'key' => env('RESEND_API_KEY'),
     ],

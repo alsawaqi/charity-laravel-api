@@ -21,6 +21,7 @@ class MainLocationController extends Controller
                 'city:id,name',
                 'organization:id,name',
                 'district:id,name',
+                'company:id,name',
             ]);
 
         if ($search) {
@@ -44,14 +45,14 @@ class MainLocationController extends Controller
     /**
      * Simple list for dropdowns if needed (id + name).
      */
-   public function listAll()
-{
-    return response()->json(
-        MainLocation::select('id', 'name', 'organization_id', 'country_id', 'region_id', 'city_id')
-            ->orderBy('name')
-            ->get()
-    );
-}
+    public function listAll()
+    {
+        return response()->json(
+            MainLocation::select('id', 'name', 'organization_id', 'company_id', 'country_id', 'region_id', 'city_id')
+                ->orderBy('name')
+                ->get()
+        );
+    }
 
 
     public function store(Request $request)
@@ -62,6 +63,7 @@ class MainLocationController extends Controller
             'city_id'         => ['nullable', 'exists:cities,id'],
             'organization_id' => ['nullable', 'exists:organizations,id'],
             'district_id'    => ['nullable', 'exists:districts,id'],
+              'company_id'      => ['nullable', 'exists:companies,id'], 
             'name'            => ['required', 'string', 'max:255'],
         ]);
 
@@ -74,6 +76,7 @@ class MainLocationController extends Controller
                 'city:id,name',
                 'district:id,name',
                 'organization:id,name',
+                'company:id,name', // ✅ add
             ]),
             201
         );
@@ -86,7 +89,9 @@ class MainLocationController extends Controller
                 'country:id,name',
                 'region:id,name',
                 'city:id,name',
+                'district:id,name',
                 'organization:id,name',
+                'company:id,name',
             ])
         );
     }
@@ -99,6 +104,7 @@ class MainLocationController extends Controller
             'city_id'         => ['nullable', 'exists:cities,id'],
             'organization_id' => ['nullable', 'exists:organizations,id'],
             'district_id'    => ['nullable', 'exists:districts,id'],
+             'company_id'      => ['nullable', 'exists:companies,id'], 
             'name'            => ['required', 'string', 'max:255'],
         ]);
 
@@ -111,6 +117,7 @@ class MainLocationController extends Controller
                 'city:id,name',
                 'district:id,name',
                 'organization:id,name',
+                'company:id,name', 
             ])
         );
     }

@@ -53,6 +53,19 @@ class CharityLocation extends Model
     }
 
 
+      public function company()
+    {
+        return $this->hasOneThrough(
+            Company::class,
+            MainLocation::class,
+            'id',          // FK on main_locations?? (main_locations.id)
+            'id',          // FK on companies?? (companies.id)
+            'main_location_id', // local key on charity_locations
+            'company_id'   // FK on main_locations
+        );
+    }
+
+
     public function district()
 {
     return $this->belongsTo(District::class);
@@ -65,6 +78,12 @@ class CharityLocation extends Model
 
     // use snake-case so JSON key is "main_location"
     public function main_location()
+    {
+        return $this->belongsTo(MainLocation::class);
+    }
+
+
+     public function mainLocation()
     {
         return $this->belongsTo(MainLocation::class);
     }

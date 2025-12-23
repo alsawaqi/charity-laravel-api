@@ -3,133 +3,100 @@
 namespace App\Http\Controllers;
 
 use App\Models\Devices;
+use App\Models\MainLocation;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
+use App\Models\CharityLocation;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\DB;
+use App\Services\ScalefusionService;
 
 class DeviceController extends Controller
 {
-    /**
-     * List devices (with filters + pagination).
-     */
     public function index(Request $request)
     {
-        $search         = $request->query('search');
-        $sortBy         = $request->query('sortBy', 'id');
-        $sortDir        = $request->query('sortDir', 'desc');
-        $perPage        = (int) $request->query('per_page', 10);
+        $search  = $request->query('search');
+        $sortBy  = $request->query('sortBy', 'id');
+        $sortDir = $request->query('sortDir', 'desc');
+        $perPage = (int) $request->query('per_page', 10);
 
-        $status         = $request->query('status');          // active, disabled, maintenance
-        $countryId      = $request->query('country_id');
-        $brandId        = $request->query('device_brand_id');
+        $status    = $request->query('status');
+        $countryId = $request->query('country_id');
+        $brandId   = $request->query('device_brand_id');
 
-        try {
-            $query = Devices::query()
-                ->with([
-                    'deviceBrand',
-                    'deviceModel',
-                    'bank',
-                    'country',
-                    'region',
-                    'district',
-                    'city',
-                    'charityLocation',
-                    'commissionProfile',
-                ]);
 
-            // Filters
-            if ($status) {
-                $query->where('status', $status);
-            }
+        try{
 
-            if ($countryId) {
-                $query->where('country_id', $countryId);
-            }
+        
 
-            if ($brandId) {
-                $query->where('device_brand_id', $brandId);
-            }
+        $query = Devices::query()
+            ->with([
+                'deviceBrand',
+                'deviceModel',
+                'bank',
+                'country',
+                'region',
+                'district',
+                'city',
+                'charityLocation',
+                'commissionProfile',
+                'company:id,name',                 // ✅ NEW
+                'mainLocation:id,name,company_id', // ✅ NEW
+                'mainLocation.company:id,name',    // ✅ (optional but useful)
+            ]);
 
-            // Search on kiosk_id & model_number
-            if ($search) {
-                $query->where(function ($q) use ($search) {
-                    $q->where('kiosk_id', 'like', "%{$search}%")
-                      ->orWhere('model_number', 'like', "%{$search}%");
-                });
-            }
+        if ($status) $query->where('status', $status);
+        if ($countryId) $query->where('country_id', $countryId);
+        if ($brandId) $query->where('device_brand_id', $brandId);
 
-            // Whitelist sortable columns
-            if (! in_array($sortBy, ['id', 'kiosk_id', 'installed_at', 'status', 'created_at'], true)) {
-                $sortBy = 'id';
-            }
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('kiosk_id', 'like', "%{$search}%")
+                    ->orWhere('model_number', 'like', "%{$search}%")
+                    ->orWhere('login_generated_token', 'like', "%{$search}%"); // ✅ include token
+            });
+        }
 
-            $sortDir = $sortDir === 'asc' ? 'asc' : 'desc';
+        if (!in_array($sortBy, ['id', 'kiosk_id', 'installed_at', 'status', 'created_at'], true)) {
+            $sortBy = 'id';
+        }
+        $sortDir = $sortDir === 'asc' ? 'asc' : 'desc';
 
-            $query->orderBy($sortBy, $sortDir);
 
-            return response()->json(
-                $query->paginate($perPage)
-            );
-        } catch (\Exception $e) {
-            return response()->json(['error' => $e->getMessage()], 500);
+        $paginator = $query->orderBy($sortBy, $sortDir)->paginate($perPage);
+
+        // Only enrich when requested (so normal requests stay fast)
+        $withSf = filter_var($request->query('with_scalefusion', false), FILTER_VALIDATE_BOOL);
+
+        if ($withSf) {
+            $ids = $paginator->getCollection()
+                ->pluck('kiosk_id')
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+
+            $sfMap = app(ScalefusionService::class)->findDevicesByIds($ids);
+
+            $paginator->getCollection()->transform(function ($device) use ($sfMap) {
+                $key = (string) $device->kiosk_id;
+
+                // attach as an extra JSON field
+                $device->setAttribute('scalefusion', $sfMap[$key] ?? null);
+
+                return $device;
+            });
+        }
+
+        return response()->json($paginator);
+
+        }catch(\Exception $e){
+            return response()->json(['error' => 'Invalid query parameters: ' . $e->getMessage()], 400);
         }
     }
 
-    /**
-     * Show one device with all relations.
-     */
     public function show(Devices $device)
     {
-        $device->load([
-            'deviceBrand',
-            'deviceModel',
-            'bank',
-            'country',
-            'district',
-            'region',
-            'city',
-            'charityLocation',
-            'commissionProfile',
-        ]);
-
-        return response()->json($device);
-    }
-
-    /**
-     * Store a new device.
-     */
-    public function store(Request $request)
-    {
-        $validated = $request->validate([
-            'device_brand_id'       => ['required', 'exists:device_brands,id'],
-            'device_model_id'       => ['required', 'exists:device_models,id'],
-            'bank_id'               => ['nullable', 'exists:banks,id'],
-
-            'model_number'          => ['nullable', 'string', 'max:255'],
-
-            'country_id'            => ['required', 'exists:countries,id'],
-            'region_id'             => ['nullable', 'exists:regions,id'],
-            'city_id'               => ['nullable', 'exists:cities,id'],
-            'district_id'           => ['nullable', 'exists:districts,id'],
-            'charity_location_id'   => ['nullable', 'exists:charity_locations,id'],
-
-            'commission_profile_id' => ['nullable', 'exists:commission_profiles,id'],
-
-            'kiosk_id'              => ['nullable', 'string', 'max:255'],
-            'login_generated_token' => ['nullable', 'string', 'max:100', 'unique:devices,login_generated_token'],
-
-            'status'                => ['nullable', 'string', Rule::in(['active', 'disabled', 'maintenance'])],
-            'installed_at'          => ['nullable', 'date'],
-        ]);
-
-        // default status if not provided
-        if (! array_key_exists('status', $validated) || ! $validated['status']) {
-            $validated['status'] = 'active';
-        }
-
-        try {
-            $device = Devices::create($validated);
-
+        return response()->json(
             $device->load([
                 'deviceBrand',
                 'deviceModel',
@@ -140,32 +107,91 @@ class DeviceController extends Controller
                 'city',
                 'charityLocation',
                 'commissionProfile',
-            ]);
-
-            return response()->json($device, 201);
-        } catch (\Exception $e) {
-            return response()->json(['error' => $e->getMessage()], 500);
-        }
+                'company:id,name',                 // ✅ NEW
+                'mainLocation:id,name,company_id', // ✅ NEW
+                'mainLocation.company:id,name',
+            ])
+        );
     }
 
-    /**
-     * Update an existing device.
-     */
-    public function update(Request $request, Devices $device)
+    public function store(Request $request)
     {
         $validated = $request->validate([
             'device_brand_id'       => ['required', 'exists:device_brands,id'],
             'device_model_id'       => ['required', 'exists:device_models,id'],
             'bank_id'               => ['nullable', 'exists:banks,id'],
-
             'model_number'          => ['nullable', 'string', 'max:255'],
 
             'country_id'            => ['required', 'exists:countries,id'],
             'region_id'             => ['nullable', 'exists:regions,id'],
             'district_id'           => ['nullable', 'exists:districts,id'],
             'city_id'               => ['nullable', 'exists:cities,id'],
-            'charity_location_id'   => ['nullable', 'exists:charity_locations,id'],
 
+            'main_location_id'      => ['nullable', 'exists:main_locations,id'], // ✅ NEW
+            'companies_id'          => ['nullable', 'exists:companies,id'],      // ✅ NEW
+
+            'charity_location_id'   => ['nullable', 'exists:charity_locations,id'],
+            'commission_profile_id' => ['nullable', 'exists:commission_profiles,id'],
+
+            'kiosk_id'              => ['nullable', 'string', 'max:255'],
+            'login_generated_token' => ['nullable', 'string', 'max:100', 'unique:devices,login_generated_token'],
+
+            'status'                => ['nullable', 'string', Rule::in(['active', 'disabled', 'maintenance'])],
+            'installed_at'          => ['nullable', 'date'],
+        ]);
+
+        if (empty($validated['status'])) $validated['status'] = 'active';
+
+        // ✅ If charity location selected but main_location_id not sent, infer it
+        if (!empty($validated['charity_location_id']) && empty($validated['main_location_id'])) {
+            $cl = CharityLocation::select('id', 'main_location_id')->find($validated['charity_location_id']);
+            if ($cl) $validated['main_location_id'] = $cl->main_location_id;
+        }
+
+        // ✅ Always set companies_id from main_location_id (source of truth)
+        if (!empty($validated['main_location_id'])) {
+            $ml = MainLocation::select('id', 'company_id')->find($validated['main_location_id']);
+            if ($ml) $validated['companies_id'] = $ml->company_id; // overrides any mismatch
+        }
+
+        $device = Devices::create($validated);
+
+        return response()->json(
+            $device->load([
+                'deviceBrand',
+                'deviceModel',
+                'bank',
+                'country',
+                'district',
+                'region',
+                'city',
+                'charityLocation',
+                'commissionProfile',
+                'company:id,name',
+                'mainLocation:id,name,company_id',
+                'mainLocation.company:id,name',
+            ]),
+            201
+        );
+    }
+
+    public function update(Request $request, Devices $device)
+    {
+        $validated = $request->validate([
+            'device_brand_id'       => ['required', 'exists:device_brands,id'],
+            'device_model_id'       => ['required', 'exists:device_models,id'],
+            'bank_id'               => ['nullable', 'exists:banks,id'],
+            'model_number'          => ['nullable', 'string', 'max:255'],
+
+            'country_id'            => ['required', 'exists:countries,id'],
+            'region_id'             => ['nullable', 'exists:regions,id'],
+            'district_id'           => ['nullable', 'exists:districts,id'],
+            'city_id'               => ['nullable', 'exists:cities,id'],
+
+            'main_location_id'      => ['nullable', 'exists:main_locations,id'], // ✅ NEW
+            'companies_id'          => ['nullable', 'exists:companies,id'],      // ✅ NEW
+
+            'charity_location_id'   => ['nullable', 'exists:charity_locations,id'],
             'commission_profile_id' => ['nullable', 'exists:commission_profiles,id'],
 
             'kiosk_id'              => ['nullable', 'string', 'max:255'],
@@ -180,13 +206,21 @@ class DeviceController extends Controller
             'installed_at'          => ['nullable', 'date'],
         ]);
 
-        if (! array_key_exists('status', $validated) || ! $validated['status']) {
-            $validated['status'] = $device->status ?? 'active';
+        if (empty($validated['status'])) $validated['status'] = $device->status ?? 'active';
+
+        if (!empty($validated['charity_location_id']) && empty($validated['main_location_id'])) {
+            $cl = CharityLocation::select('id', 'main_location_id')->find($validated['charity_location_id']);
+            if ($cl) $validated['main_location_id'] = $cl->main_location_id;
         }
 
-        try {
-            $device->update($validated);
+        if (!empty($validated['main_location_id'])) {
+            $ml = MainLocation::select('id', 'company_id')->find($validated['main_location_id']);
+            if ($ml) $validated['companies_id'] = $ml->company_id;
+        }
 
+        $device->update($validated);
+
+        return response()->json(
             $device->load([
                 'deviceBrand',
                 'deviceModel',
@@ -197,12 +231,11 @@ class DeviceController extends Controller
                 'city',
                 'charityLocation',
                 'commissionProfile',
-            ]);
-
-            return response()->json($device);
-        } catch (\Exception $e) {
-            return response()->json(['error' => $e->getMessage()], 500);
-        }
+                'company:id,name',
+                'mainLocation:id,name,company_id',
+                'mainLocation.company:id,name',
+            ])
+        );
     }
 
     /**

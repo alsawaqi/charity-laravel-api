@@ -10,7 +10,9 @@ class Devices extends Model
 
     protected $table = 'devices';
 
-     protected $fillable = [
+    protected $fillable = [
+        'companies_id',
+        'main_location_id',
         'device_brand_id',
         'device_model_id',
         'bank_id',
@@ -48,8 +50,18 @@ class Devices extends Model
     }
 
 
+    public function company()
+    {
+        return $this->belongsTo(Company::class, 'companies_id');
+    }
 
-        public function country()
+    public function mainLocation()
+    {
+        return $this->belongsTo(MainLocation::class, 'main_location_id');
+    }
+
+
+    public function country()
     {
         return $this->belongsTo(Country::class, 'country_id');
     }
@@ -70,12 +82,12 @@ class Devices extends Model
     }
 
 
-      public function commissionProfile()
+    public function commissionProfile()
     {
         return $this->belongsTo(CommissionProfiles::class, 'commission_profile_id');
     }
 
-     public function charityLocation()
+    public function charityLocation()
     {
         return $this->belongsTo(CharityLocation::class, 'charity_location_id');
     }

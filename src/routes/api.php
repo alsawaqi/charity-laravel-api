@@ -7,15 +7,18 @@ use App\Http\Controllers\BankController;
 use App\Http\Controllers\CityController;
 use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\RegionController;
+use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\CountryController;
+use App\Http\Controllers\ActivityController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\DistrictController;
 use App\Http\Controllers\DeviceBrandController;
 use App\Http\Controllers\DeviceModelController;
 use App\Http\Controllers\CharityStatsController;
+ 
 use App\Http\Controllers\MainLocationController;
 use App\Http\Controllers\OrganizationController;
- 
+use App\Http\Controllers\DeviceLocationController;
 use App\Http\Controllers\LocationLookupController;
 use App\Http\Controllers\CharityLocationController;
 use App\Http\Controllers\CommissionProfileController;
@@ -97,6 +100,9 @@ Route::get('/main-locations/{mainLocation}', [MainLocationController::class, 'sh
 Route::put('/main-locations/{mainLocation}', [MainLocationController::class, 'update']);
 Route::delete('/main-locations/{mainLocation}', [MainLocationController::class, 'destroy']);
 
+
+Route::get('/companies/list', [CompanyController::class, 'listAll']);
+
 Route::get('/charity-locations', [CharityLocationController::class, 'index']);
 Route::post('/charity-locations', [CharityLocationController::class, 'store']);
 Route::get('/charity-locations/{charityLocation}', [CharityLocationController::class, 'show']);
@@ -135,6 +141,11 @@ Route::prefix('stats/charity')->group(function () {
     Route::get('/locations/status',  [CharityLocationStatusController::class, 'index']);
 });
 
+
+
+Route::get('/device-locations/filters', [DeviceLocationController::class, 'filters']);
+Route::get('/device-locations/devices', [DeviceLocationController::class, 'devices']);
+
 Route::get('/donations', [CharityTransactionsController::class, 'index']);
 
 Route::middleware('auth:sanctum')->group(function () {
@@ -142,6 +153,11 @@ Route::get('/stats/charity/transactions', [CharityTransactionsController::class,
 
 });
 Route::post('/donations', [CharityTransactionsController::class, 'store']);
+
+
+
+Route::apiResource('companies', CompanyController::class);
+Route::apiResource('activities', ActivityController::class);
 
 
 Route::get   ('/devices',          [DeviceController::class, 'index']);

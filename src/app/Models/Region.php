@@ -29,6 +29,11 @@ class Region extends Model
         return $this->hasMany(City::class, 'region_id');
     }
 
+    public function districts()
+    {
+        return $this->hasMany(District::class, 'region_id');
+    }
+
     // optional:
     public function charityLocations()
     {

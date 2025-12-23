@@ -15,14 +15,17 @@ use App\Models\CommissionProfilesShares;
 
 class CharityTransactionsController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-
         $today = Carbon::now('Asia/Muscat')->toDateString();
 
-        $transactions = CharityTransactions::with([
+        $perPage = (int) $request->query('per_page', 10);
+        $perPage = max(1, min($perPage, 50)); // safety limit
+
+        $paginator = CharityTransactions::with([
             'device',
             'device.devicemodel',
+            'device.devicebrand',
             'charityLocation',
             'charityLocation.main_location',
             'bank',
@@ -31,16 +34,24 @@ class CharityTransactionsController extends Controller
             'charitytransactionshares.comissionProfileShare.organization'
         ])
             ->whereDate('created_at', $today)
+            ->where('status', 'success')
             ->orderByDesc('created_at')
-            ->get();
+            ->paginate($perPage);
 
         return response()->json([
             'success' => true,
-            'data'    => $transactions,
+            'data'    => $paginator->items(), // keep your frontend simple
+            'meta'    => [
+                'current_page' => $paginator->currentPage(),
+                'last_page'    => $paginator->lastPage(),
+                'per_page'     => $paginator->perPage(),
+                'total'        => $paginator->total(),
+                'from'         => $paginator->firstItem(),
+                'to'           => $paginator->lastItem(),
+            ],
             'message' => 'Charity transactions retrieved successfully.',
         ], 200);
     }
-
 
     public function index_all(Request $request)
     {
@@ -49,6 +60,13 @@ class CharityTransactionsController extends Controller
         $to    = $request->input('to');
 
         $end = Carbon::today()->endOfDay();
+
+
+        $perPage      = (int) $request->input('per_page', 10);
+        $perPage      = max(1, min($perPage, 100)); // safety
+
+        $successPage  = (int) $request->input('success_page', 1);
+        $failedPage   = (int) $request->input('failed_page', 1);
 
 
         // 👇 get the org of the logged-in user
@@ -65,32 +83,33 @@ class CharityTransactionsController extends Controller
 
         $orgId = $user->organization_id;
 
-// If user has no organization, decide what to do:
-if (! $orgId) {
-    // OPTION A: Super admin = see all orgs
-    $visibleOrgIds = Organization::pluck('id')->all();
+        // If user has no organization, decide what to do:
+        if (! $orgId) {
+            // OPTION A: Super admin = see all orgs
+            $visibleOrgIds = Organization::pluck('id')->all();
 
-    // OPTION B: No org assigned -> error:
-    // return response()->json(['message' => 'User has no organization assigned'], 422);
-} else {
-    $org = Organization::with('children')->find($orgId);
+            // OPTION B: No org assigned -> error:
+            // return response()->json(['message' => 'User has no organization assigned'], 422);
+        } else {
+            $org = Organization::with('children')->find($orgId);
 
-    if (! $org) {
-        // The org_id points to a non-existing organization
-        return response()->json([
-            'message' => "Organization not found for id {$orgId}",
-        ], 404);
-    }
+            if (! $org) {
+                // The org_id points to a non-existing organization
+                return response()->json([
+                    'message' => "Organization not found for id {$orgId}",
+                ], 404);
+            }
 
-    // Use your helper on the found org
-    $visibleOrgIds = $org->descendantsAndSelfIds();
-}
-        
+            // Use your helper on the found org
+            $visibleOrgIds = $org->descendantsAndSelfIds();
+        }
+
 
 
 
 
         switch ($range) {
+            
             case '30d':
                 $start = $end->copy()->subDays(29)->startOfDay();
                 break;
@@ -108,11 +127,17 @@ if (! $orgId) {
                 $start = Carbon::parse($from)->startOfDay();
                 $end   = Carbon::parse($to)->endOfDay();
                 break;
+               case 'today':
+    $start = Carbon::today()->startOfDay();
+    $end   = Carbon::today()->endOfDay();
+    break; 
 
             case '7d':
             default:
                 $start = $end->copy()->subDays(6)->startOfDay();
                 break;
+
+                
         }
 
         $base = CharityTransactions::with([
@@ -140,11 +165,14 @@ if (! $orgId) {
         $failedAmount  = (clone $failedQuery)->sum('total_amount');
         $failedCount   = (clone $failedQuery)->count();
 
-        // For the table: all success+failed in one list
-        $transactions = (clone $base)
-            ->whereIn('status', ['success', 'fail'])
+        // ✅ Paginated lists (separate page params)
+        $success = (clone $successQuery)
             ->orderByDesc('created_at')
-            ->get();
+            ->paginate($perPage, ['*'], 'success_page', $successPage);
+
+        $failed = (clone $failedQuery)
+            ->orderByDesc('created_at')
+            ->paginate($perPage, ['*'], 'failed_page', $failedPage);
 
         return response()->json([
             'totals' => [
@@ -157,7 +185,8 @@ if (! $orgId) {
                     'count'  => (int) $failedCount,
                 ],
             ],
-            'transactions' => $transactions,
+            'success' => $success,
+            'failed'  => $failed,
         ]);
     }
 

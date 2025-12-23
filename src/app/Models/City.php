@@ -30,6 +30,11 @@ class City extends Model
         return $this->belongsTo(District::class);
     }
 
+    public function mainLocations()
+    {
+        return $this->hasMany(MainLocation::class, 'city_id');
+    }
+
     public function charityLocations()
     {
         return $this->hasMany(CharityLocation::class, 'city_id');

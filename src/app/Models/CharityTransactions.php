@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class CharityTransactions extends Model
 {
@@ -53,6 +54,17 @@ class CharityTransactions extends Model
     public function charityLocation()
     {
         return $this->belongsTo(CharityLocation::class, 'charity_location_id');
+    }
+
+
+     public function company(): BelongsTo
+    {
+        return $this->belongsTo(Company::class);
+    }
+
+    public function mainLocation(): BelongsTo
+    {
+        return $this->belongsTo(MainLocation::class);
     }
 
 

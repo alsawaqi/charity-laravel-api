@@ -18,6 +18,7 @@ class MainLocation extends Model
         'organization_id',
         'district_id',
         'name',
+        'company_id'
     ];
 
     public function country()
@@ -41,6 +42,17 @@ class MainLocation extends Model
         return $this->belongsTo(City::class);
     }
 
+
+    public function company()
+    {
+        return $this->belongsTo(Company::class);
+    }
+
+
+    public function charityLocations()
+    {
+        return $this->hasMany(CharityLocation::class, 'main_location_id');
+    }
 
 
     public function organization()
