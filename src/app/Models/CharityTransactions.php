@@ -46,6 +46,11 @@ class CharityTransactions extends Model
     {
         return $this->belongsTo(Country::class, 'country_id');
     }
+
+    public function district()
+    {
+        return $this->belongsTo(District::class, 'district_id');
+    }
     public function region()
     {
         return $this->belongsTo(Region::class, 'region_id');
