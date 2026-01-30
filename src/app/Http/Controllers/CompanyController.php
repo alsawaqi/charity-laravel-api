@@ -31,6 +31,9 @@ class CompanyController extends Controller
             $query->whereHas('activities', fn($a) => $a->where('activities.id', $activityId));
         }
 
+        $companyId = $request->query('companies_id');
+if ($companyId) $query->where('companies_id', $companyId);
+
         return response()->json($query->paginate($perPage));
     }
 

@@ -59,12 +59,12 @@ class CharityTransactions extends Model
 
      public function company(): BelongsTo
     {
-        return $this->belongsTo(Company::class);
+        return $this->belongsTo(Company::class, 'company_id');
     }
 
     public function mainLocation(): BelongsTo
     {
-        return $this->belongsTo(MainLocation::class);
+        return $this->belongsTo(MainLocation::class, 'main_location_id');
     }
 
 

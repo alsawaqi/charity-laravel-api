@@ -160,10 +160,10 @@ Route::apiResource('companies', CompanyController::class);
 Route::apiResource('activities', ActivityController::class);
 
 
-Route::get   ('/devices',          [DeviceController::class, 'index']);
-Route::get   ('/devices/{device}', [DeviceController::class, 'show']);
-Route::post  ('/devices',          [DeviceController::class, 'store']);
-Route::put   ('/devices/{device}', [DeviceController::class, 'update']);
+Route::get('/devices',          [DeviceController::class, 'index']);
+Route::get('/devices/{device}', [DeviceController::class, 'show']);
+Route::post('/devices',          [DeviceController::class, 'store']);
+Route::put('/devices/{device}', [DeviceController::class, 'update']);
 Route::delete('/devices/{device}', [DeviceController::class, 'destroy']);
 
 

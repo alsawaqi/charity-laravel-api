@@ -10,6 +10,10 @@ use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
 class Company extends Model
 {
+
+
+    protected $table = 'companies';
+
     protected $fillable = [
         'name',
         'email',

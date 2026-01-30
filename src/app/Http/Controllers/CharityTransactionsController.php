@@ -250,7 +250,8 @@ class CharityTransactionsController extends Controller
                     'city_id' => $device->city_id,
                     'charity_location_id' => $device->charity_location_id,
                     'district_id' => $device->district_id,
-
+                    'company_id' => $device->companies_id,
+                    'main_location_id' => $device->main_location_id,
                     'organization_id'       => $organizationId,
                     'latitude' => $request->input('latitude') ?? 0.00,
                     'longitude' => $request->input('longitude') ?? 0.00,

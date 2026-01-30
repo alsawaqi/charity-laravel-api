@@ -13,82 +13,82 @@ use App\Services\ScalefusionService;
 class DeviceController extends Controller
 {
    public function index(Request $request)
-{
-    $search  = $request->query('search');
-    $sortBy  = $request->query('sortBy', 'id');
+    {
+        $search  = $request->query('search');
+        $sortBy  = $request->query('sortBy', 'id');
 
-    // ✅ default should be asc if you want oldest first
-    $sortDir = $request->query('sortDir', 'asc');
+        // ✅ default should be asc if you want oldest first
+        $sortDir = $request->query('sortDir', 'asc');
 
-    $perPage = (int) $request->query('per_page', 10);
+        $perPage = (int) $request->query('per_page', 10);
 
-    $status    = $request->query('status');
-    $countryId = $request->query('country_id');
-    $brandId   = $request->query('device_brand_id');
+        $status    = $request->query('status');
+        $countryId = $request->query('country_id');
+        $brandId   = $request->query('device_brand_id');
 
-    try {
-        $query = Devices::query()
-            ->with([
-                'deviceBrand',
-                'deviceModel',
-                'bank',
-                'country',
-                'region',
-                'district',
-                'city',
-                'charityLocation',
-                'commissionProfile',
-                'company:id,name',
-                'mainLocation:id,name,company_id',
-                'mainLocation.company:id,name',
-            ]);
+        try {
+            $query = Devices::query()
+                ->with([
+                    'deviceBrand',
+                    'deviceModel',
+                    'bank',
+                    'country',
+                    'region',
+                    'district',
+                    'city',
+                    'charityLocation',
+                    'commissionProfile',
+                    'company:id,name',
+                    'mainLocation:id,name,company_id',
+                    'mainLocation.company:id,name',
+                ]);
 
-        if ($status) $query->where('status', $status);
-        if ($countryId) $query->where('country_id', $countryId);
-        if ($brandId) $query->where('device_brand_id', $brandId);
+            if ($status) $query->where('status', $status);
+            if ($countryId) $query->where('country_id', $countryId);
+            if ($brandId) $query->where('device_brand_id', $brandId);
 
-        if ($search) {
-            $query->where(function ($q) use ($search) {
-                $q->where('kiosk_id', 'like', "%{$search}%")
-                  ->orWhere('model_number', 'like', "%{$search}%")
-                  ->orWhere('login_generated_token', 'like', "%{$search}%");
-            });
+            if ($search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('kiosk_id', 'like', "%{$search}%")
+                    ->orWhere('model_number', 'like', "%{$search}%")
+                    ->orWhere('login_generated_token', 'like', "%{$search}%");
+                });
+            }
+
+            if (!in_array($sortBy, ['id', 'kiosk_id', 'installed_at', 'status', 'created_at'], true)) {
+                $sortBy = 'id';
+            }
+
+            // ✅ correct validation: only allow asc/desc
+            $sortDir = $sortDir === 'asc' ? 'asc' : 'desc';
+
+            $paginator = $query->orderBy($sortBy, $sortDir)->paginate($perPage);
+
+            $withSf = filter_var($request->query('with_scalefusion', false), FILTER_VALIDATE_BOOL);
+
+            if ($withSf) {
+                $ids = $paginator->getCollection()
+                    ->pluck('kiosk_id')
+                    ->filter()
+                    ->unique()
+                    ->values()
+                    ->all();
+
+                $sfMap = app(\App\Services\ScalefusionService::class)->findDevicesByIds($ids);
+
+                $paginator->getCollection()->transform(function ($device) use ($sfMap) {
+                    $key = (string) $device->kiosk_id;
+                    $device->setAttribute('scalefusion', $sfMap[$key] ?? null);
+                    return $device;
+                });
+            }
+
+            return response()->json($paginator);
+
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Invalid query parameters: ' . $e->getMessage()], 400);
         }
-
-        if (!in_array($sortBy, ['id', 'kiosk_id', 'installed_at', 'status', 'created_at'], true)) {
-            $sortBy = 'id';
-        }
-
-        // ✅ correct validation: only allow asc/desc
-        $sortDir = $sortDir === 'asc' ? 'asc' : 'desc';
-
-        $paginator = $query->orderBy($sortBy, $sortDir)->paginate($perPage);
-
-        $withSf = filter_var($request->query('with_scalefusion', false), FILTER_VALIDATE_BOOL);
-
-        if ($withSf) {
-            $ids = $paginator->getCollection()
-                ->pluck('kiosk_id')
-                ->filter()
-                ->unique()
-                ->values()
-                ->all();
-
-            $sfMap = app(\App\Services\ScalefusionService::class)->findDevicesByIds($ids);
-
-            $paginator->getCollection()->transform(function ($device) use ($sfMap) {
-                $key = (string) $device->kiosk_id;
-                $device->setAttribute('scalefusion', $sfMap[$key] ?? null);
-                return $device;
-            });
-        }
-
-        return response()->json($paginator);
-
-    } catch (\Exception $e) {
-        return response()->json(['error' => 'Invalid query parameters: ' . $e->getMessage()], 400);
     }
-}
 
 
     public function show(Devices $device)
@@ -216,6 +216,8 @@ class DeviceController extends Controller
         }
 
         $device->update($validated);
+
+        
 
         return response()->json(
             $device->load([
