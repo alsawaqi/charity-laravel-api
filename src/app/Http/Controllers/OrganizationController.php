@@ -7,6 +7,7 @@ use App\Models\Organization;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Arr;
 
 class OrganizationController extends Controller
 {
@@ -218,8 +219,9 @@ class OrganizationController extends Controller
         // expects user_password_confirmation if user_password is present
     ]);
 
-    // Update organization itself
-    $organization->update($validated);
+    
+$orgData = Arr::except($validated, ['user_name','user_email','user_password','user_password_confirmation']);
+$organization->update($orgData);
 
     // If there is a primary user and some login fields were sent, update them
     if ($primaryUser && (
