@@ -128,66 +128,66 @@ class CharityTransactionsController extends Controller
                 $end   = Carbon::parse($to)->endOfDay();
                 break;
                case 'today':
-    $start = Carbon::today()->startOfDay();
-    $end   = Carbon::today()->endOfDay();
-    break; 
+        $start = Carbon::today()->startOfDay();
+        $end   = Carbon::today()->endOfDay();
+        break; 
 
-            case '7d':
-            default:
-                $start = $end->copy()->subDays(6)->startOfDay();
-                break;
+                case '7d':
+                default:
+                    $start = $end->copy()->subDays(6)->startOfDay();
+                    break;
 
-                
-        }
+                    
+            }
 
-        $base = CharityTransactions::with([
-            'device',
-            'device.DeviceModel',
-            'device.DeviceModel.DeviceBrand',  // or DeviceModel.DeviceBrand if you want
-            'bank',
-            'charityLocation',
-            'charityLocation.main_location',
-            'charitytransactionshares',
-            'charitytransactionshares.comissionProfileShare',
-            'charitytransactionshares.comissionProfileShare.organization',
-        ])
-            ->whereBetween('created_at', [$start, $end])
-            ->whereIn('organization_id', $visibleOrgIds);
+            $base = CharityTransactions::with([
+                'device',
+                'device.DeviceModel',
+                'device.DeviceModel.DeviceBrand',  // or DeviceModel.DeviceBrand if you want
+                'bank',
+                'charityLocation',
+                'charityLocation.main_location',
+                'charitytransactionshares',
+                'charitytransactionshares.comissionProfileShare',
+                'charitytransactionshares.comissionProfileShare.organization',
+            ])
+                ->whereBetween('created_at', [$start, $end])
+                ->whereIn('organization_id', $visibleOrgIds);
 
 
-        // success + failed queries
-        $successQuery = (clone $base)->where('status', 'success');
-        $failedQuery  = (clone $base)->where('status', 'fail');
+            // success + failed queries
+            $successQuery = (clone $base)->where('status', 'success');
+            $failedQuery  = (clone $base)->where('status', 'fail');
 
-        $successAmount = (clone $successQuery)->sum('total_amount');
-        $successCount  = (clone $successQuery)->count();
+            $successAmount = (clone $successQuery)->sum('total_amount');
+            $successCount  = (clone $successQuery)->count();
 
-        $failedAmount  = (clone $failedQuery)->sum('total_amount');
-        $failedCount   = (clone $failedQuery)->count();
+            $failedAmount  = (clone $failedQuery)->sum('total_amount');
+            $failedCount   = (clone $failedQuery)->count();
 
-        // ✅ Paginated lists (separate page params)
-        $success = (clone $successQuery)
-            ->orderByDesc('created_at')
-            ->paginate($perPage, ['*'], 'success_page', $successPage);
+            // ✅ Paginated lists (separate page params)
+            $success = (clone $successQuery)
+                ->orderByDesc('created_at')
+                ->paginate($perPage, ['*'], 'success_page', $successPage);
 
-        $failed = (clone $failedQuery)
-            ->orderByDesc('created_at')
-            ->paginate($perPage, ['*'], 'failed_page', $failedPage);
+            $failed = (clone $failedQuery)
+                ->orderByDesc('created_at')
+                ->paginate($perPage, ['*'], 'failed_page', $failedPage);
 
-        return response()->json([
-            'totals' => [
-                'success' => [
-                    'amount' => (float) $successAmount,
-                    'count'  => (int) $successCount,
+            return response()->json([
+                'totals' => [
+                    'success' => [
+                        'amount' => (float) $successAmount,
+                        'count'  => (int) $successCount,
+                    ],
+                    'failed' => [
+                        'amount' => (float) $failedAmount,
+                        'count'  => (int) $failedCount,
+                    ],
                 ],
-                'failed' => [
-                    'amount' => (float) $failedAmount,
-                    'count'  => (int) $failedCount,
-                ],
-            ],
-            'success' => $success,
-            'failed'  => $failed,
-        ]);
+                'success' => $success,
+                'failed'  => $failed,
+            ]);
     }
 
 
@@ -290,4 +290,105 @@ class CharityTransactionsController extends Controller
             ], 500);
         }
     }
+
+
+    public function store_dhofar(Request $request)
+    {
+
+        try {
+            $result = DB::transaction(function () use ($request) {
+                $device = Devices::where('kiosk_id', $request->input('id'))->first();
+
+                $commissionProfile = CommissionProfiles::where('id', $device->commission_profile_id)->first();
+
+                $commissionProfileShares = CommissionProfilesShares::where('commission_profile_id', $commissionProfile->id)->get();
+
+
+                $rawReceipt = $request->input('receipt');
+
+                // Normalize: if it's already an array (from JSON body), use it,
+                // if it's a JSON string, decode it.
+                if (is_string($rawReceipt)) {
+                    $receipt = json_decode($rawReceipt, true);
+                
+                    if (json_last_error() !== JSON_ERROR_NONE) {
+                        $receipt = null; // invalid JSON
+                    }
+                } elseif (is_array($rawReceipt)) {
+                    $receipt = $rawReceipt;
+                } else {
+                    $receipt = null;
+                }
+                
+                // Default
+                $status = 'fail';
+                
+                // New logic: check top-level "status"
+                if (is_array($receipt) && isset($receipt['status'])) {
+                    $receiptStatus = strtolower(trim((string) $receipt['status']));
+                
+                    if ($receiptStatus === 'success') {
+                        $status = 'success';
+                    }
+                    // else keep it as 'fail'
+                }
+                
+
+                $organizationId = optional($device->charityLocation)->organization_id;
+
+
+                $charity =   CharityTransactions::create([
+                    'device_id' => $device->id,
+                    'commission_profile_id' =>  $commissionProfile->id,
+                    'total_amount' => $request->input('amount'),
+                    'bank_response' => $receipt,
+                    'bank_transaction_id' => $device->bank_id,
+
+                    'status' => $status,
+                    'country_id' => $device->country_id,
+                    'region_id' => $device->region_id,
+                    'city_id' => $device->city_id,
+                    'charity_location_id' => $device->charity_location_id,
+                    'district_id' => $device->district_id,
+                    'company_id' => $device->companies_id,
+                    'main_location_id' => $device->main_location_id,
+                    'organization_id'       => $organizationId,
+                    'latitude' => $request->input('latitude') ?? 0.00,
+                    'longitude' => $request->input('longitude') ?? 0.00,
+                ]);
+
+                $shareRows = [];
+
+                foreach ($commissionProfileShares as $share) {
+                    $percentage = (float) $share->percentage; // or $share->percentage
+                    $shareAmount = round($request->input('amount') * $percentage / 100, 3); // round as you like
+
+                    $shareRows[] = CharityTransactionShare::create([
+                        'charity_transaction_id'      => $charity->id,
+
+                        'commission_profile_share_id' => $share->id,
+
+                        'amount'    => $shareAmount,
+                    ]);
+                }
+
+                return [
+                    'charity' => $charity,
+                    'shares'  => $shareRows,
+                ];
+            });
+
+            return response()->json([
+                'success' => true,
+                'data'    => $result,
+                'message' => 'Charity transaction stored and shares calculated successfully.',
+            ], 201);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error processing charity transaction: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
 }

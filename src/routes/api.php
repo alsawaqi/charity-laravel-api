@@ -153,8 +153,9 @@ Route::get('/stats/charity/transactions', [CharityTransactionsController::class,
 
 });
 Route::post('/donations', [CharityTransactionsController::class, 'store']);
+Route::post('/donations-dhofar', [CharityTransactionsController::class, 'store_dhofar']);
 
-
+ 
 
 Route::apiResource('companies', CompanyController::class);
 Route::apiResource('activities', ActivityController::class);
