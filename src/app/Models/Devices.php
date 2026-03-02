@@ -24,6 +24,7 @@ class Devices extends Model
         'charity_location_id',
         'commission_profile_id',
         'kiosk_id',
+        'terminal_id',
         'login_generated_token',
         'status',
         'installed_at',

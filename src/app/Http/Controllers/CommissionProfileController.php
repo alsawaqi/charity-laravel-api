@@ -62,19 +62,19 @@ class CommissionProfileController extends Controller
     /**
      * Show one commission profile with shares.
      */
-    public function show(CommissionProfiles $commissionProfiles)
+    public function show(CommissionProfiles $commissionProfile)
     {
-        $commissionProfiles->load([
+        $commissionProfile->load([
             'shares' => function ($q) {
                 $q->orderBy('sort_order')->orderBy('id');
             },
             'shares.organization',
         ]);
 
-        return response()->json($commissionProfiles);
+        return response()->json($commissionProfile);
     }
 
-    /**
+    /** 
      * Create profile + its shares.
      */
     public function store(Request $request)

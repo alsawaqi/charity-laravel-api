@@ -131,6 +131,7 @@ class DeviceController extends Controller
             'commission_profile_id' => ['nullable', 'exists:commission_profiles,id'],
 
             'kiosk_id'              => ['nullable', 'string', 'max:255'],
+            'terminal_id'           => ['nullable', 'string', 'max:255'],
             'login_generated_token' => ['nullable', 'string', 'max:100', 'unique:devices,login_generated_token'],
 
             'status'                => ['nullable', 'string', Rule::in(['active', 'disabled', 'maintenance'])],
@@ -192,6 +193,7 @@ class DeviceController extends Controller
             'commission_profile_id' => ['nullable', 'exists:commission_profiles,id'],
 
             'kiosk_id'              => ['nullable', 'string', 'max:255'],
+            'terminal_id'           => ['nullable', 'string', 'max:255'],
             'login_generated_token' => [
                 'nullable',
                 'string',
