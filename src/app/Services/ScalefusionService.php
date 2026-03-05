@@ -4,6 +4,8 @@ namespace App\Services;
 
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Support\Facades\Log;
 
 class ScalefusionService
 {
@@ -54,28 +56,35 @@ class ScalefusionService
     protected function requestDevicesPage($cursor = null): array
     {
         $token = config('services.scalefusion.token');
-        $base  = rtrim(config('services.scalefusion.base_url'), '/');
-
+        $base  = rtrim(config('services.scalefusion.base_v3'), '/');
+    
         if (!$token) return [];
-
+    
         $params = [];
-        if (!empty($cursor)) {
-            // Scalefusion uses cursor-style pagination (you get next_cursor in response)
-            $params['cursor'] = $cursor;
+        if (!empty($cursor)) $params['cursor'] = $cursor;
+    
+        try {
+            $res = Http::timeout(12)
+                ->retry(2, 200) // keep your retries
+                ->withHeaders([
+                    'Accept'        => 'application/json',
+                    'Authorization' => 'Token ' . $token,
+                ])
+                ->get($base . '/devices.json', $params);
+    
+            if (!$res->ok()) return [];
+            return $res->json();
+        } catch (ConnectionException $e) {
+            Log::warning('Scalefusion timeout/unreachable', [
+                'url' => $base . '/devices.json',
+                'cursor' => $cursor,
+                'error' => $e->getMessage(),
+            ]);
+            return []; // ✅ don’t break your API
+        } catch (\Throwable $e) {
+            Log::warning('Scalefusion error', ['error' => $e->getMessage()]);
+            return [];
         }
-
-        $res = Http::timeout(12)
-            ->retry(2, 200)
-            ->withHeaders([
-                'Accept'        => 'application/json',
-                'Authorization' => 'Token ' . $token,
-            ])
-            ->get($base . '/devices.json', $params);
-
-        // if scalefusion fails, we just return empty and your main API still works
-        if (!$res->ok()) return [];
-
-        return $res->json();
     }
 
     protected function pickImportantFields(array $row): array

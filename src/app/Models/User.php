@@ -55,4 +55,10 @@ class User extends Authenticatable
     {
         return $this->belongsTo(Organization::class, 'organization_id');
     }
+
+
+    public function cashCollections()
+{
+    return $this->hasMany(CashCollection::class, 'collected_by_user_id');
+}
 }

@@ -22,7 +22,8 @@ return [
 
     'scalefusion' => [
         'token' => env('SCALEFUSION_TOKEN'),
-        'base_url' => env('SCALEFUSION_BASE_URL', 'https://api.scalefusion.com/api/v3'),
+        'base_v3' => env('SCALEFUSION_BASE_V3', 'https://api.scalefusion.com/api/v3'),
+        'base_v1' => env('SCALEFUSION_BASE_V1', 'https://api.scalefusion.com/api/v1'),
     ],
 
     'resend' => [

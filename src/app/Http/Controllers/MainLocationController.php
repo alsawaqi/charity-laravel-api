@@ -48,7 +48,16 @@ class MainLocationController extends Controller
     public function listAll()
     {
         return response()->json(
-            MainLocation::select('id', 'name', 'organization_id', 'company_id', 'country_id', 'region_id', 'city_id')
+            MainLocation::select(
+                'id',
+                'name',
+                'organization_id',
+                'company_id',
+                'country_id',
+                'region_id',
+                'district_id',
+                'city_id'
+            )
                 ->orderBy('name')
                 ->get()
         );

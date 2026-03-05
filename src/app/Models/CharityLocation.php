@@ -93,4 +93,10 @@ class CharityLocation extends Model
     {
         return $this->hasMany(CharityTransactions::class, 'charity_location_id');
     }
+
+
+    public function cashCollections()
+{
+    return $this->hasMany(CashCollection::class, 'charity_location_id');
+}
 }
