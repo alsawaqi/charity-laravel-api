@@ -8,7 +8,7 @@ class Organization extends Model
 {
     protected $table = 'organizations';
 
-       protected $fillable = [
+    protected $fillable = [
         'name',
         'trade_name',
         'cr_number',
@@ -32,9 +32,7 @@ class Organization extends Model
         'parent_id',
     ];
 
-
-
-      public function parent()
+    public function parent()
     {
         return $this->belongsTo(Organization::class, 'parent_id');
     }
@@ -49,25 +47,41 @@ class Organization extends Model
         return $this->hasMany(CharityLocation::class, 'organization_id');
     }
 
-     public function users()
+    public function users()
     {
         return $this->hasMany(User::class);
     }
 
-
-     public function primaryUser()
+    public function primaryUser()
     {
         return $this->hasOne(User::class)->oldest();
     }
 
-     public function descendants()
+    public function country()
+    {
+        return $this->belongsTo(Country::class, 'country_id');
+    }
+
+    public function region()
+    {
+        return $this->belongsTo(Region::class, 'region_id');
+    }
+
+    public function city()
+    {
+        return $this->belongsTo(City::class, 'city_id');
+    }
+
+    public function bank()
+    {
+        return $this->belongsTo(Banks::class, 'bank_id');
+    }
+
+    public function descendants()
     {
         return $this->children()->with('descendants');
     }
 
-    /**
-     * Get IDs of this organization + all descendants (for filtering).
-     */
     public function descendantsAndSelfIds(): array
     {
         $ids = [$this->id];

@@ -152,32 +152,33 @@ class CharityTransactionsController extends Controller
      */
     public function filter(Request $request)
     {
-        $user = $request->user();
-
-        
-
         // pagination + sorting
         $perPage = (int) $request->input('per_page', 20);
         $perPage = max(1, min($perPage, 100));
-
-        $sortBy = $request->input('sortBy', 'created_at');
+    
+        $sortBy = (string) $request->input('sortBy', 'created_at');
         $sortDir = strtolower((string) $request->input('sortDir', 'desc')) === 'asc' ? 'asc' : 'desc';
-
-        $allowedSort = ['id', 'created_at', 'total_amount', 'status'];
+    
+        $allowedSort = ['id', 'created_at', 'total_amount', 'status', 'processed_at'];
         if (!in_array($sortBy, $allowedSort, true)) {
             $sortBy = 'created_at';
         }
-
+    
         // date range (defaults to last 7 days)
         $from = $request->input('from'); // YYYY-MM-DD
-        $to = $request->input('to');   // YYYY-MM-DD
-
+        $to   = $request->input('to');   // YYYY-MM-DD
+    
         $tz = 'Asia/Muscat';
-
+    
         if ($from && $to) {
             try {
                 $start = Carbon::parse($from, $tz)->startOfDay();
-                $end = Carbon::parse($to, $tz)->endOfDay();
+                $end   = Carbon::parse($to, $tz)->endOfDay();
+    
+                // if swapped, fix
+                if ($start->gt($end)) {
+                    [$start, $end] = [$end, $start];
+                }
             } catch (\Throwable $e) {
                 return response()->json(['message' => 'Invalid date range'], 422);
             }
@@ -185,8 +186,11 @@ class CharityTransactionsController extends Controller
             $end = Carbon::now($tz)->endOfDay();
             $start = (clone $end)->subDays(6)->startOfDay();
         }
-
-        $q = CharityTransactions::with([
+    
+        // --------------------------
+        // Base query (ALL filters except "status" so totals always stay correct)
+        // --------------------------
+        $base = CharityTransactions::with([
             'device',
             'device.DeviceModel',
             'device.DeviceModel.DeviceBrand',
@@ -204,20 +208,16 @@ class CharityTransactionsController extends Controller
             'charitytransactionshares.comissionProfileShare',
             'charitytransactionshares.comissionProfileShare.organization',
         ])->whereBetween('created_at', [$start, $end]);
-
-        // -------- Filters --------
+    
+        // -------- Basic filters --------
         if ($request->filled('bank_id')) {
-            $q->where('bank_transaction_id', (int) $request->input('bank_id'));
+            $base->where('bank_transaction_id', (int) $request->input('bank_id'));
         }
-
-        if ($request->filled('status')) {
-            $status = $request->input('status');
-            // existing system uses success/fail/pending
-            if (in_array($status, ['success', 'fail', 'pending'], true)) {
-                $q->where('status', $status);
-            }
+    
+        if ($request->filled('organization_id')) {
+            $base->where('organization_id', (int) $request->input('organization_id'));
         }
-
+    
         foreach ([
             'country_id',
             'region_id',
@@ -227,91 +227,191 @@ class CharityTransactionsController extends Controller
             'charity_location_id',
             'company_id',
             'device_id',
+            'commission_profile_id',
         ] as $key) {
             if ($request->filled($key)) {
-                $q->where($key, (int) $request->input($key));
+                $base->where($key, (int) $request->input($key));
             }
         }
-
-        // Optional text search (reference / kiosk / terminal / token)
+    
+        // Amount range (optional)
+        if ($request->filled('min_amount')) {
+            $base->where('total_amount', '>=', (float) $request->input('min_amount'));
+        }
+        if ($request->filled('max_amount')) {
+            $base->where('total_amount', '<=', (float) $request->input('max_amount'));
+        }
+    
+        // -------- Device-related filters (optional) --------
+        if ($request->filled('device_brand_id')) {
+            $id = (int) $request->input('device_brand_id');
+            $base->whereHas('device', fn($dq) => $dq->where('device_brand_id', $id));
+        }
+    
+        if ($request->filled('device_model_id')) {
+            $id = (int) $request->input('device_model_id');
+            $base->whereHas('device', fn($dq) => $dq->where('device_model_id', $id));
+        }
+    
+        if ($request->filled('kiosk_id')) {
+            $s = trim((string) $request->input('kiosk_id'));
+            if ($s !== '') {
+                $base->whereHas('device', fn($dq) => $dq->where('kiosk_id', 'ilike', "%{$s}%"));
+            }
+        }
+    
+        if ($request->filled('terminal_id')) {
+            $s = trim((string) $request->input('terminal_id'));
+            if ($s !== '') {
+                // transaction.terminal_id OR devices.terminal_id
+                $base->where(function ($qq) use ($s) {
+                    $qq->where('terminal_id', 'ilike', "%{$s}%")
+                       ->orWhereHas('device', fn($dq) => $dq->where('terminal_id', 'ilike', "%{$s}%"));
+                });
+            }
+        }
+    
+        // -------- Bank response JSON filters (optional, Postgres jsonb) --------
+        // Sohar-style example: bank_response->receiptResponse->approvalCode
+        if ($request->filled('approval_code')) {
+            $s = trim((string) $request->input('approval_code'));
+            if ($s !== '') {
+                $base->whereRaw(
+                    "bank_response->'receiptResponse'->>'approvalCode' ILIKE ?",
+                    ["%{$s}%"]
+                );
+            }
+        }
+    
+        // Some responses have top-level statusCode
+        if ($request->filled('status_code')) {
+            $s = trim((string) $request->input('status_code'));
+            if ($s !== '') {
+                $base->whereRaw(
+                    "bank_response->>'statusCode' ILIKE ?",
+                    ["%{$s}%"]
+                );
+            }
+        }
+    
+        if ($request->filled('card_type')) {
+            $s = trim((string) $request->input('card_type'));
+            if ($s !== '') {
+                $base->whereRaw(
+                    "bank_response->'receiptResponse'->>'cardType' ILIKE ?",
+                    ["%{$s}%"]
+                );
+            }
+        }
+    
+        // Example: bank_response->sessionData->issuer
+        if ($request->filled('issuer')) {
+            $s = trim((string) $request->input('issuer'));
+            if ($s !== '') {
+                $base->whereRaw(
+                    "bank_response->'sessionData'->>'issuer' ILIKE ?",
+                    ["%{$s}%"]
+                );
+            }
+        }
+    
+        // -------- Search (reference / device fields) --------
         $search = trim((string) $request->input('search', ''));
         if ($search !== '') {
-            $q->where(function ($qq) use ($search) {
-                $qq->where('reference', 'like', "%{$search}%")
-                   ->orWhere('id', $search)
-                   ->orWhereHas('device', function ($dq) use ($search) {
-                       $dq->where('kiosk_id', 'like', "%{$search}%")
-                          ->orWhere('terminal_id', 'like', "%{$search}%")
-                          ->orWhere('login_generated_token', 'like', "%{$search}%")
-                          ->orWhere('model_number', 'like', "%{$search}%");
-                   });
+            $base->where(function ($qq) use ($search) {
+                $qq->where('reference', 'ilike', "%{$search}%");
+    
+                // ✅ only apply "id = X" if numeric (prevents Postgres bigint error)
+                if (ctype_digit($search)) {
+                    $qq->orWhere('id', (int) $search);
+                }
+    
+                $qq->orWhereHas('device', function ($dq) use ($search) {
+                    $dq->where('kiosk_id', 'ilike', "%{$search}%")
+                       ->orWhere('terminal_id', 'ilike', "%{$search}%")
+                       ->orWhere('login_generated_token', 'ilike', "%{$search}%")
+                       ->orWhere('model_number', 'ilike', "%{$search}%");
+                });
             });
         }
-
-            // ✅ Totals BEFORE pagination
-                $allAmount     = (float) (clone $q)->sum("total_amount");
-                $allCount      = (int)   (clone $q)->count();
-
-                $successAmount = (float) (clone $q)->where("status", "success")->sum("total_amount");
-                $successCount  = (int)   (clone $q)->where("status", "success")->count();
-
-                $failAmount    = (float) (clone $q)->where("status", "fail")->sum("total_amount");
-                $failCount     = (int)   (clone $q)->where("status", "fail")->count();
-
-                $paginator = (clone $q)->orderBy($sortBy, $sortDir)->paginate($perPage);
-
-
-             
-                    $collection = $paginator->getCollection();
-
-                    // collect kiosk_id from the devices inside the page results
-                    $ids = $collection->map(function ($tx) {
-                            return optional($tx->device)->kiosk_id;
-                        })
-                        ->filter()
-                        ->unique()
-                        ->values()
-                        ->all();
-
-                    if (!empty($ids)) {
-                        try {
-                            $sfMap = app(ScalefusionService::class)->findDevicesByIds($ids);
-                        } catch (\Throwable $e) {
-                            // if scalefusion is down locally, don't break the endpoint
-                            $sfMap = [];
-                        }
-
-                        // attach scalefusion info into tx->device->scalefusion
-                        $collection->transform(function ($tx) use ($sfMap) {
-                            if ($tx->relationLoaded('device') && $tx->device) {
-                                $key = (string) $tx->device->kiosk_id;
-                                $tx->device->setAttribute('scalefusion', $sfMap[$key] ?? null);
-                            }
-                            return $tx;
-                        });
-
-                        $paginator->setCollection($collection);
-                    }
-              
-
-                return response()->json([
-                    "success" => true,
-                    "data" => $paginator->getCollection()->values(),
-                    "meta"    => [
-                        "current_page" => $paginator->currentPage(),
-                        "last_page"    => $paginator->lastPage(),
-                        "per_page"     => $paginator->perPage(),
-                        "total"        => $paginator->total(),
-                        "from"         => $paginator->firstItem(),
-                        "to"           => $paginator->lastItem(),
-                    ],
-                    "totals" => [
-                        "all"     => ["amount" => $allAmount,     "count" => $allCount],
-                        "success" => ["amount" => $successAmount, "count" => $successCount],
-                        "fail"    => ["amount" => $failAmount,    "count" => $failCount],
-                    ],
-                    "message" => "Filtered charity transactions",
-                ], 200);
+    
+        // --------------------------
+        // Totals BEFORE pagination (always based on BASE query)
+        // --------------------------
+        $allAmount     = (float) (clone $base)->sum('total_amount');
+        $allCount      = (int)   (clone $base)->count();
+    
+        $successAmount = (float) (clone $base)->where('status', 'success')->sum('total_amount');
+        $successCount  = (int)   (clone $base)->where('status', 'success')->count();
+    
+        $failAmount    = (float) (clone $base)->where('status', 'fail')->sum('total_amount');
+        $failCount     = (int)   (clone $base)->where('status', 'fail')->count();
+    
+        // --------------------------
+        // Data query (apply status ONLY for the table results)
+        // --------------------------
+        $q = clone $base;
+    
+        if ($request->filled('status')) {
+            $status = (string) $request->input('status');
+            if (in_array($status, ['success', 'fail', 'pending'], true)) {
+                $q->where('status', $status);
+            }
+        }
+    
+        $paginator = (clone $q)
+            ->orderBy($sortBy, $sortDir)
+            ->paginate($perPage);
+    
+        // --------------------------
+        // Attach Scalefusion data to devices in CURRENT PAGE
+        // --------------------------
+        $collection = $paginator->getCollection();
+    
+        $ids = $collection->map(function ($tx) {
+                return optional($tx->device)->kiosk_id;
+            })
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    
+        if (!empty($ids)) {
+            try {
+                $sfMap = app(ScalefusionService::class)->findDevicesByIds($ids);
+            } catch (\Throwable $e) {
+                $sfMap = [];
+            }
+    
+            $collection->transform(function ($tx) use ($sfMap) {
+                if ($tx->relationLoaded('device') && $tx->device) {
+                    $key = (string) $tx->device->kiosk_id;
+                    $tx->device->setAttribute('scalefusion', $sfMap[$key] ?? null);
+                }
+                return $tx;
+            });
+    
+            $paginator->setCollection($collection);
+        }
+    
+        return response()->json([
+            'success' => true,
+            'data' => $paginator->getCollection()->values(),
+            'meta' => [
+                'current_page' => $paginator->currentPage(),
+                'last_page'    => $paginator->lastPage(),
+                'per_page'     => $paginator->perPage(),
+                'total'        => $paginator->total(),
+                'from'         => $paginator->firstItem(),
+                'to'           => $paginator->lastItem(),
+            ],
+            'totals' => [
+                'all'     => ['amount' => $allAmount,     'count' => $allCount],
+                'success' => ['amount' => $successAmount, 'count' => $successCount],
+                'fail'    => ['amount' => $failAmount,    'count' => $failCount],
+            ],
+            'message' => 'Filtered charity transactions',
+        ], 200);
     }
 
     public function store(Request $request)

@@ -26,8 +26,7 @@ use App\Http\Controllers\CharityDeviceStatusController;
 use App\Http\Controllers\CharityTransactionsController;
 use App\Http\Controllers\CharityLocationStatusController;
 use App\Http\Controllers\ScalefusionController;
-
-use App\Http\Controllers\CashCollectionController;
+ use App\Http\Controllers\CashCollectionController;
 
 
 
@@ -144,7 +143,7 @@ Route::get('/locations/cities', [LocationLookupController::class, 'cities']);
 
 
  
-
+Route::get('/devices/export', [DeviceController::class, 'export']);
 
 
 Route::get('/banks', [BankController::class, 'index']);
@@ -184,6 +183,7 @@ Route::get('/devices/{device}', [DeviceController::class, 'show']);
 Route::post('/devices',          [DeviceController::class, 'store']);
 Route::put('/devices/{device}', [DeviceController::class, 'update']);
 Route::delete('/devices/{device}', [DeviceController::class, 'destroy']);
+Route::get('/devices/by-kiosk/{kiosk_id}', [DeviceController::class, 'showByKiosk']);
 
 
 Route::get('/stats/charity/daily', [CharityStatsController::class, 'dailyTotals']);
@@ -207,4 +207,7 @@ Route::prefix('scalefusion')->group(function () {
 
     Route::post('/devices/lock', [ScalefusionController::class, 'lock']);     // { device_ids: [] }
     Route::post('/devices/unlock', [ScalefusionController::class, 'unlock']); // { device_ids: [] }
+
+    Route::get('/location-geofence', [ScalefusionController::class, 'locationGeofence']);
+
 });
