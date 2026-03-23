@@ -16,11 +16,11 @@ class CashCollectionController extends Controller
 {
     public function filters(Request $request)
     {
-        $mainLocations = MainLocation::query()
-            ->select('id', 'name', 'country_id', 'region_id', 'district_id', 'city_id')
+       $mainLocations = MainLocation::query()
+          ->select('id', 'name', 'organization_id', 'country_id', 'region_id', 'district_id', 'city_id')
             ->with([
                 'charityLocations' => function ($q) {
-                    $q->select('id', 'main_location_id', 'name', 'country_id', 'region_id', 'district_id', 'city_id')
+                    $q->select('id', 'main_location_id', 'name', 'organization_id', 'country_id', 'region_id', 'district_id', 'city_id')
                         ->orderBy('name');
                 },
             ])
@@ -77,22 +77,23 @@ class CashCollectionController extends Controller
             $out = fopen('php://output', 'w');
 
             fputcsv($out, [
-                'ID',
-                'Collected At',
-                'Amount',
-                'Collector',
-                'Collector Email',
-                'Witness Name',
-                'Has Witness Signature',
-                'Country',
-                'Region',
-                'District',
-                'City',
-                'Main Location',
-                'Charity Location',
-                'Collector Signature URL',
-                'Witness Signature URL',
-            ]);
+                        'ID',
+                        'Collected At',
+                        'Amount',
+                        'Organization',
+                        'Collector',
+                        'Collector Email',
+                        'Witness Name',
+                        'Has Witness Signature',
+                        'Country',
+                        'Region',
+                        'District',
+                        'City',
+                        'Main Location',
+                        'Charity Location',
+                        'Collector Signature URL',
+                        'Witness Signature URL',
+                    ]);
 
             $query->chunk(500, function ($rows) use ($out) {
                 foreach ($rows as $row) {
@@ -102,6 +103,7 @@ class CashCollectionController extends Controller
                         $row->id,
                         optional($row->collected_at)?->format('Y-m-d H:i:s') ?? '',
                         $row->amount,
+                        $row->organization?->name ?? '',
                         $row->collector?->name ?? '',
                         $row->collector?->email ?? '',
                         $row->witness_name ?? '',
@@ -126,36 +128,43 @@ class CashCollectionController extends Controller
 
     public function store(Request $request)
     {
-        $user = $request->user();
-        if (!$user) {
-            return response()->json(['message' => 'Unauthenticated'], 401);
-        }
-
-        $validated = $request->validate([
-            'main_location_id'    => ['required', 'exists:main_locations,id'],
-            'charity_location_id' => ['required', 'exists:charity_locations,id'],
-            'amount'              => ['required', 'numeric', 'min:0'],
-            'collector_signature' => ['required', 'string'],
-            'witness_signature'   => ['required', 'string'],
-            'witness_name'        => ['nullable', 'string', 'max:255'],
-            'collected_at'        => ['nullable', 'date'],
-        ]);
-
-        try {
-            $charityLocation = CharityLocation::query()
-                ->select('id', 'main_location_id', 'country_id', 'region_id', 'district_id', 'city_id')
-                ->findOrFail((int) $validated['charity_location_id']);
-
-            if ((int) $charityLocation->main_location_id !== (int) $validated['main_location_id']) {
-                return response()->json([
-                    'message' => 'Selected charity location does not belong to the selected main location.',
-                ], 422);
+            $user = $request->user();
+            if (!$user) {
+                return response()->json(['message' => 'Unauthenticated'], 401);
             }
+
+            $validated = $request->validate([
+                'main_location_id'    => ['required', 'exists:main_locations,id'],
+                'charity_location_id' => ['required', 'exists:charity_locations,id'],
+                'amount'              => ['required', 'numeric', 'min:0'],
+                'collector_signature' => ['required', 'string'],
+                'witness_signature'   => ['required', 'string'],
+                'witness_name'        => ['nullable', 'string', 'max:255'],
+                'collected_at'        => ['nullable', 'date'],
+            ]);
+
+            try {
+
+        
+            $mainLocation = MainLocation::query()
+                    ->select('id', 'organization_id')
+                    ->findOrFail((int) $validated['main_location_id']);
+
+                $charityLocation = CharityLocation::query()
+                    ->select('id', 'main_location_id', 'country_id', 'region_id', 'district_id', 'city_id')
+                    ->findOrFail((int) $validated['charity_location_id']);
+
+                if ((int) $charityLocation->main_location_id !== (int) $mainLocation->id) {
+                    return response()->json([
+                        'message' => 'Selected charity location does not belong to the selected main location.',
+                    ], 422);
+                }
 
             $collectorPath = $this->storeSignature($validated['collector_signature'], 'collector');
             $witnessPath = $this->storeSignature($validated['witness_signature'], 'witness');
 
             $row = CashCollection::create([
+                'organization_id' => $mainLocation->organization_id,
                 'country_id' => $charityLocation->country_id,
                 'region_id' => $charityLocation->region_id,
                 'district_id' => $charityLocation->district_id,
@@ -197,6 +206,10 @@ class CashCollectionController extends Controller
         if ($request->filled('charity_location_id')) {
             $query->where('charity_location_id', (int) $request->input('charity_location_id'));
         }
+
+        if ($request->filled('organization_id')) {
+        $query->where('organization_id', (int) $request->input('organization_id'));
+         }
 
         if ($request->filled('collected_by_user_id')) {
             $query->where('collected_by_user_id', (int) $request->input('collected_by_user_id'));
@@ -260,6 +273,7 @@ class CashCollectionController extends Controller
     private function relations(): array
     {
         return [
+            'organization:id,name',
             'country:id,name',
             'region:id,name',
             'district:id,name',

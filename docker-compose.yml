@@ -33,12 +33,15 @@ services:
       - charity-api-app
 
   composer:
-    image: composer:latest
+    build:
+      context: .
+      dockerfile: docker/dev/php/php.dockerfile
     container_name: composer_charity
     volumes:
-      - /home/abdallah644/projects/my-projects/charity/charity-laravel-api/src:/app
-    working_dir: /app
-    command: install
+      - /home/abdallah644/projects/my-projects/charity/charity-laravel-api/src:/var/www/html
+    working_dir: /var/www/html
+    entrypoint: ["composer"]
+    command: ["install"]
     networks:
       - charity_net
 

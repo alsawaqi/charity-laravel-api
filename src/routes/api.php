@@ -26,8 +26,9 @@ use App\Http\Controllers\CharityDeviceStatusController;
 use App\Http\Controllers\CharityTransactionsController;
 use App\Http\Controllers\CharityLocationStatusController;
 use App\Http\Controllers\ScalefusionController;
- use App\Http\Controllers\CashCollectionController;
-
+use App\Http\Controllers\CashCollectionController;
+use App\Http\Controllers\BankReconciliationController;
+use App\Http\Controllers\CommissionShareReportController;
 
 
 Route::get('/user', function (Request $request) {
@@ -119,6 +120,7 @@ Route::delete('/main-locations/{mainLocation}', [MainLocationController::class, 
 Route::get('/companies/list', [CompanyController::class, 'listAll']);
 
 Route::get('/charity-locations', [CharityLocationController::class, 'index']);
+Route::get('/charity-locations/list', [CharityLocationController::class, 'listAll']);
 Route::post('/charity-locations/bulk', [CharityLocationController::class, 'storeBulk']);
 Route::post('/charity-locations', [CharityLocationController::class, 'store']);
 Route::get('/charity-locations/{charityLocation}', [CharityLocationController::class, 'show']);
@@ -159,6 +161,17 @@ Route::prefix('stats/charity')->group(function () {
 
 
 
+
+
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/commission-share-report', [CommissionShareReportController::class, 'index']);
+
+    Route::post('/bank-reconciliation/preview', [BankReconciliationController::class, 'preview']);
+    Route::post('/bank-reconciliation/commit', [BankReconciliationController::class, 'commit']);
+});
+ 
+
+
 Route::get('/device-locations/filters', [DeviceLocationController::class, 'filters']);
 Route::get('/device-locations/devices', [DeviceLocationController::class, 'devices']);
 
@@ -193,6 +206,13 @@ Route::get('/stats/charity/top-location', [CharityStatsController::class, 'topLo
 Route::get('/stats/charity/top-banks', [CharityStatsController::class, 'topBanks']);
 Route::get('/stats/charity/heatmap', [CharityStatsController::class, 'heatmap']); 
 Route::get('/stats/charity/status', [CharityStatsController::class, 'index']);
+
+
+
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/bank-reconciliation/preview', [BankReconciliationController::class, 'preview']);
+     Route::post('/bank-reconciliation/commit', [BankReconciliationController::class, 'commit']);
+});
 
 
 Route::get('/ai-dashboard-search', [CharityStatsController::class, 'aiDashboardSearch']);

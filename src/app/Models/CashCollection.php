@@ -12,6 +12,7 @@ class CashCollection extends Model
     protected $table = 'cash_collections';
 
     protected $fillable = [
+        'organization_id',
         'country_id',
         'region_id',
         'district_id',
@@ -31,13 +32,43 @@ class CashCollection extends Model
         'collected_at' => 'datetime',
     ];
 
-    public function country() { return $this->belongsTo(Country::class); }
-    public function region() { return $this->belongsTo(Region::class); }
-    public function district() { return $this->belongsTo(District::class); }
-    public function city() { return $this->belongsTo(City::class); }
+    public function organization()
+    {
+        return $this->belongsTo(Organization::class, 'organization_id');
+    }
 
-    public function mainLocation() { return $this->belongsTo(MainLocation::class, 'main_location_id'); }
-    public function charityLocation() { return $this->belongsTo(CharityLocation::class, 'charity_location_id'); }
+    public function country()
+    {
+        return $this->belongsTo(Country::class);
+    }
 
-    public function collector() { return $this->belongsTo(User::class, 'collected_by_user_id'); }
+    public function region()
+    {
+        return $this->belongsTo(Region::class);
+    }
+
+    public function district()
+    {
+        return $this->belongsTo(District::class);
+    }
+
+    public function city()
+    {
+        return $this->belongsTo(City::class);
+    }
+
+    public function mainLocation()
+    {
+        return $this->belongsTo(MainLocation::class, 'main_location_id');
+    }
+
+    public function charityLocation()
+    {
+        return $this->belongsTo(CharityLocation::class, 'charity_location_id');
+    }
+
+    public function collector()
+    {
+        return $this->belongsTo(User::class, 'collected_by_user_id');
+    }
 }

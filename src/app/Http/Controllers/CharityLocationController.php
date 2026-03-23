@@ -51,6 +51,21 @@ class CharityLocationController extends Controller
         );
     }
 
+
+    public function listAll(Request $request)
+    {
+        $rows = CharityLocation::query()
+            ->select('id', 'name', 'main_location_id', 'organization_id')
+            ->when(
+                $request->filled('main_location_id'),
+                fn ($q) => $q->where('main_location_id', $request->integer('main_location_id'))
+            )
+            ->orderBy('name')
+            ->get();
+
+        return response()->json($rows);
+    }
+
     public function show(CharityLocation $charityLocation)
     {
         return response()->json(
@@ -167,6 +182,8 @@ class CharityLocationController extends Controller
             'data' => $created,
         ], 201);
     }
+
+
     public function update(Request $request, CharityLocation $charityLocation)
     {
         $validated = $request->validate([

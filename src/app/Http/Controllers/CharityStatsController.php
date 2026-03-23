@@ -18,11 +18,24 @@ use App\Models\CharityLocation;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use App\Models\CharityTransactions;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 class CharityStatsController extends Controller
 {
 
 
+private function paginatorMeta(LengthAwarePaginator $paginator): array
+{
+    return [
+        'current_page' => $paginator->currentPage(),
+        'last_page' => $paginator->lastPage(),
+        'per_page' => $paginator->perPage(),
+        'total' => $paginator->total(),
+        'from' => $paginator->firstItem(),
+        'to' => $paginator->lastItem(),
+        'has_more_pages' => $paginator->hasMorePages(),
+    ];
+}
 
     private function successStatuses(): array
     {
@@ -59,7 +72,15 @@ class CharityStatsController extends Controller
     /**
      * NEW: Same logic as your original topDevices(), but filtered by date range (+ orgs)
      */
-    private function topDevicesForStatusRange(Carbon $start, Carbon $end, array $visibleOrgIds): array
+    private function topDevicesForStatusRange(
+    Carbon $start,
+    Carbon $end,
+    array $visibleOrgIds,
+    ?int $organizationId = null,
+    ?int $companyId = null,
+    ?int $mainLocationId = null,
+    ?int $charityLocationId = null
+): array
     {
         $success = $this->successStatuses();
 
@@ -70,6 +91,10 @@ class CharityStatsController extends Controller
             ->whereBetween('ct.created_at', [$start, $end])
             ->whereIn('ct.status', $success)
             ->when(!empty($visibleOrgIds), fn($q) => $q->whereIn('ct.organization_id', $visibleOrgIds))
+            ->when($organizationId, fn($q) => $q->where('ct.organization_id', $organizationId))
+            ->when($companyId, fn($q) => $q->where('ct.company_id', $companyId))
+            ->when($mainLocationId, fn($q) => $q->where('ct.main_location_id', $mainLocationId))
+            ->when($charityLocationId, fn($q) => $q->where('ct.charity_location_id', $charityLocationId))
             ->selectRaw("
             d.device_brand_id,
             d.device_model_id,
@@ -125,7 +150,15 @@ class CharityStatsController extends Controller
     /**
      * NEW: Same logic as your original topLocation(), but filtered by date range (+ orgs)
      */
-    private function topLocationsForStatusRange(Carbon $start, Carbon $end, array $visibleOrgIds): array
+    private function topLocationsForStatusRange(
+                                Carbon $start,
+                                Carbon $end,
+                                array $visibleOrgIds,
+                                ?int $organizationId = null,
+                                ?int $companyId = null,
+                                ?int $mainLocationId = null,
+                                ?int $charityLocationId = null
+                            ): array
     {
         $success = $this->successStatuses();
 
@@ -133,6 +166,10 @@ class CharityStatsController extends Controller
             ->whereBetween('created_at', [$start, $end])
             ->whereIn('status', $success)
             ->when(!empty($visibleOrgIds), fn($q) => $q->whereIn('organization_id', $visibleOrgIds))
+            ->when($organizationId, fn($q) => $q->where('organization_id', $organizationId))
+            ->when($companyId, fn($q) => $q->where('company_id', $companyId))
+            ->when($mainLocationId, fn($q) => $q->where('main_location_id', $mainLocationId))
+            ->when($charityLocationId, fn($q) => $q->where('charity_location_id', $charityLocationId))
             ->select('charity_location_id', DB::raw('SUM(total_amount) as total_amount'))
             ->groupBy('charity_location_id')
             ->orderByDesc('total_amount')
@@ -159,131 +196,188 @@ class CharityStatsController extends Controller
 
 
 
-    public function index(Request $request)
-    {
-        $range = $request->input('range', '7d'); // 7d, 30d, 6m, custom
-        $from  = $request->input('from');
-        $to    = $request->input('to');
+   public function index(Request $request)
+{
+    $range = $request->input('range', '7d');
+    $from  = $request->input('from');
+    $to    = $request->input('to');
 
-        $end = Carbon::today()->endOfDay();
+    $end = Carbon::today()->endOfDay();
 
-        switch ($range) {
-            case '30d':
-                $start = $end->copy()->subDays(29)->startOfDay();
-                break;
-            case '6m':
-                $start = $end->copy()->subMonthsNoOverflow(6)->startOfDay();
-                break;
-            case 'custom':
-                if (!$from || !$to) {
-                    return response()->json([
-                        'message' => 'From and to dates are required for custom range',
-                    ], 422);
-                }
-                $start = Carbon::parse($from)->startOfDay();
-                $end   = Carbon::parse($to)->endOfDay();
-                break;
-            case '7d':
-            default:
-                $start = $end->copy()->subDays(6)->startOfDay();
-                break;
-        }
-
-        $baseQuery = CharityTransactions::whereBetween('created_at', [$start, $end]);
-
-        // ✅ totals by status
-        $successTotal = (clone $baseQuery)
-            ->where('status', 'success')
-            ->sum('total_amount');
-
-        $failedTotal = (clone $baseQuery)
-            ->where('status', 'fail')
-            ->sum('total_amount');
-
-        // ✅ bar chart: sum of total_amount (success only) per day
-        $bar = (clone $baseQuery)
-            ->where('status', 'success')
-            ->selectRaw('DATE(created_at) as date, SUM(total_amount) as total_amount')
-            ->groupBy('date')
-            ->orderBy('date')
-            ->get();
-
-        $visibleOrgIds = $this->resolveVisibleOrgIds($request);
-
-        // ✅ Use the NEW “status-range” versions (same logic as dashboard functions)
-        $topDevices   = $this->topDevicesForStatusRange($start, $end, $visibleOrgIds);
-        $topLocations = $this->topLocationsForStatusRange($start, $end, $visibleOrgIds);
-
-
-
-        $byHourRaw = (clone $baseQuery)
-            ->where('status', 'success')
-            ->selectRaw('
-                        ((EXTRACT(DOW FROM created_at)::int + 6) % 7) as weekday_index, 
-                        EXTRACT(HOUR FROM created_at)::int as hour_of_day,       
-                        SUM(total_amount) as total_amount
-                    ')
-            ->groupBy('weekday_index', 'hour_of_day')
-            ->orderBy('weekday_index')
-            ->orderBy('hour_of_day')
-            ->get();
-
-
-        // We always want labels Monday..Sunday
-        $weekdayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-
-        // Build a 24x7 matrix [hour][weekday] = amount
-        $matrix = [];
-        foreach (range(0, 23) as $h) {
-            // 7 days, all zero to start
-            $matrix[$h] = array_fill(0, 7, 0.0);
-        }
-
-        foreach ($byHourRaw as $row) {
-            $w = (int) $row->weekday_index; // 0..6
-            $h = (int) $row->hour_of_day;   // 0..23
-
-            if (isset($matrix[$h][$w])) {
-                $matrix[$h][$w] = (float) $row->total_amount;
+    switch ($range) {
+        case '30d':
+            $start = $end->copy()->subDays(29)->startOfDay();
+            break;
+        case '6m':
+            $start = $end->copy()->subMonthsNoOverflow(6)->startOfDay();
+            break;
+        case 'custom':
+            if (!$from || !$to) {
+                return response()->json([
+                    'message' => 'From and to dates are required for custom range',
+                ], 422);
             }
-        }
-
-        // Transform to Apex heatmap series: one series per hour
-        $hourSeries = [];
-        foreach (range(0, 23) as $h) {
-            $label = sprintf('%02d:00', $h);
-
-            // Optional: skip hours with no sales at all (shorter chart)
-            // if (array_sum($matrix[$h]) <= 0) continue;
-
-            $hourSeries[] = [
-                'name' => $label,          // shows on Y axis
-                'data' => $matrix[$h],     // values for Mon..Sun
-            ];
-        }
-
-
-
-
-        return response()->json([
-            'totals' => [
-                'success' => (float) $successTotal,
-                'failed'  => (float) $failedTotal,
-            ],
-            'bar' => [
-                'categories' => $bar->pluck('date'),
-                'data'       => $bar->pluck('total_amount')->map(fn($v) => (float) $v),
-            ],
-            'top_devices'   => $topDevices,
-            'top_locations' => $topLocations,
-
-            // ✅ NEW
-            'sales_by_hour' => [
-                'categories' => $weekdayNames, // X axis: Mon..Sun
-                'series'     => $hourSeries,   // Y axis: 00:00..23:00 rows
-            ],
-        ]);
+            $start = Carbon::parse($from)->startOfDay();
+            $end   = Carbon::parse($to)->endOfDay();
+            break;
+        case '7d':
+        default:
+            $start = $end->copy()->subDays(6)->startOfDay();
+            break;
     }
+
+    $organizationId = $request->integer('organization_id');
+    $companyId = $request->integer('company_id');
+    $mainLocationId = $request->integer('main_location_id');
+    $charityLocationId = $request->integer('charity_location_id');
+
+    if ($organizationId && $companyId) {
+        return response()->json([
+            'message' => 'Select either organization or company, not both.',
+        ], 422);
+    }
+
+    $successPage = max(1, (int) $request->input('success_page', 1));
+    $failedPage = max(1, (int) $request->input('failed_page', 1));
+
+    $successPerPage = min(100, max(5, (int) $request->input('success_per_page', 10)));
+    $failedPerPage = min(100, max(5, (int) $request->input('failed_per_page', 10)));
+
+    $visibleOrgIds = $this->resolveVisibleOrgIds($request);
+
+    $baseQuery = CharityTransactions::query()
+        ->whereBetween('created_at', [$start, $end])
+        ->when(!empty($visibleOrgIds), fn($q) => $q->whereIn('organization_id', $visibleOrgIds))
+        ->when($organizationId, fn($q) => $q->where('organization_id', $organizationId))
+        ->when($companyId, fn($q) => $q->where('company_id', $companyId))
+        ->when($mainLocationId, fn($q) => $q->where('main_location_id', $mainLocationId))
+        ->when($charityLocationId, fn($q) => $q->where('charity_location_id', $charityLocationId));
+
+    $successTotal = (float) (clone $baseQuery)
+        ->whereIn('status', $this->successStatuses())
+        ->sum('total_amount');
+
+    $failedTotal = (float) (clone $baseQuery)
+        ->whereIn('status', $this->failedStatuses())
+        ->sum('total_amount');
+
+    $bar = (clone $baseQuery)
+        ->whereIn('status', $this->successStatuses())
+        ->selectRaw('DATE(created_at) as date, SUM(total_amount) as total_amount')
+        ->groupBy('date')
+        ->orderBy('date')
+        ->get();
+
+    $topDevices = $this->topDevicesForStatusRange(
+        $start,
+        $end,
+        $visibleOrgIds,
+        $organizationId,
+        $companyId,
+        $mainLocationId,
+        $charityLocationId
+    );
+
+    $topLocations = $this->topLocationsForStatusRange(
+        $start,
+        $end,
+        $visibleOrgIds,
+        $organizationId,
+        $companyId,
+        $mainLocationId,
+        $charityLocationId
+    );
+
+    $successTransactions = (clone $baseQuery)
+        ->whereIn('status', $this->successStatuses())
+        ->with([
+            'bank:id,name',
+            'charityLocation:id,name,main_location_id',
+            'mainLocation:id,name',
+            'organization:id,name',
+            'company:id,name',
+        ])
+        ->orderByDesc('created_at')
+        ->orderByDesc('id')
+        ->paginate($successPerPage, ['*'], 'success_page', $successPage);
+
+    $failedTransactions = (clone $baseQuery)
+        ->whereIn('status', $this->failedStatuses())
+        ->with([
+            'bank:id,name',
+            'charityLocation:id,name,main_location_id',
+            'mainLocation:id,name',
+            'organization:id,name',
+            'company:id,name',
+        ])
+        ->orderByDesc('created_at')
+        ->orderByDesc('id')
+        ->paginate($failedPerPage, ['*'], 'failed_page', $failedPage);
+
+    $byHourRaw = (clone $baseQuery)
+        ->whereIn('status', $this->successStatuses())
+        ->selectRaw('
+            ((EXTRACT(DOW FROM created_at)::int + 6) % 7) as weekday_index,
+            EXTRACT(HOUR FROM created_at)::int as hour_of_day,
+            SUM(total_amount) as total_amount
+        ')
+        ->groupBy('weekday_index', 'hour_of_day')
+        ->orderBy('weekday_index')
+        ->orderBy('hour_of_day')
+        ->get();
+
+    $weekdayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+    $matrix = [];
+    foreach (range(0, 23) as $h) {
+        $matrix[$h] = array_fill(0, 7, 0.0);
+    }
+
+    foreach ($byHourRaw as $row) {
+        $w = (int) $row->weekday_index;
+        $h = (int) $row->hour_of_day;
+
+        if (isset($matrix[$h][$w])) {
+            $matrix[$h][$w] = (float) $row->total_amount;
+        }
+    }
+
+    $hourSeries = [];
+    foreach (range(0, 23) as $h) {
+        $hourSeries[] = [
+            'name' => sprintf('%02d:00', $h),
+            'data' => $matrix[$h],
+        ];
+    }
+
+    return response()->json([
+        'totals' => [
+            'success' => $successTotal,
+            'failed'  => $failedTotal,
+        ],
+        'bar' => [
+            'categories' => $bar->pluck('date'),
+            'data'       => $bar->pluck('total_amount')->map(fn($v) => (float) $v),
+        ],
+        'top_devices'   => $topDevices,
+        'top_locations' => $topLocations,
+
+        'success_transactions' => [
+            'data' => $successTransactions->items(),
+            'meta' => $this->paginatorMeta($successTransactions),
+        ],
+
+        'failed_transactions' => [
+            'data' => $failedTransactions->items(),
+            'meta' => $this->paginatorMeta($failedTransactions),
+        ],
+
+        'sales_by_hour' => [
+            'categories' => $weekdayNames,
+            'series'     => $hourSeries,
+        ],
+    ]);
+}
 
 
     public function dailyTotals(): JsonResponse
@@ -355,11 +449,17 @@ class CharityStatsController extends Controller
                 ->map(function ($row) {
 
                     // 2) For this (brand+model), find top charity location (success-only)
-                    $topLoc = DB::table('charity_transactions as ct')
-                        ->join('devices as d', 'ct.device_id', '=', 'd.id')
-                        ->where('ct.status', 'success')
-                        ->where('d.device_brand_id', $row->device_brand_id)
-                        ->where('d.device_model_id', $row->device_model_id)
+                     $topLoc = DB::table('charity_transactions as ct')
+    ->join('devices as d', 'ct.device_id', '=', 'd.id')
+    ->whereBetween('ct.created_at', [$start, $end])
+    ->whereIn('ct.status', $success)
+    ->when(!empty($visibleOrgIds), fn($q) => $q->whereIn('ct.organization_id', $visibleOrgIds))
+    ->when($organizationId, fn($q) => $q->where('ct.organization_id', $organizationId))
+    ->when($companyId, fn($q) => $q->where('ct.company_id', $companyId))
+    ->when($mainLocationId, fn($q) => $q->where('ct.main_location_id', $mainLocationId))
+    ->when($charityLocationId, fn($q) => $q->where('ct.charity_location_id', $charityLocationId))
+    ->where('d.device_brand_id', $row->device_brand_id)
+    ->where('d.device_model_id', $row->device_model_id)
                         ->select('ct.charity_location_id', DB::raw('SUM(ct.total_amount) as total_amount'))
                         ->groupBy('ct.charity_location_id')
                         ->orderByDesc('total_amount')

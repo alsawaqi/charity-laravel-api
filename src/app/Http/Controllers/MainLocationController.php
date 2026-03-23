@@ -45,23 +45,38 @@ class MainLocationController extends Controller
     /**
      * Simple list for dropdowns if needed (id + name).
      */
-    public function listAll()
-    {
-        return response()->json(
-            MainLocation::select(
-                'id',
-                'name',
-                'organization_id',
-                'company_id',
-                'country_id',
-                'region_id',
-                'district_id',
-                'city_id'
-            )
-                ->orderBy('name')
-                ->get()
-        );
+ public function listAll(Request $request)
+{
+    if ($request->filled('organization_id') && $request->filled('company_id')) {
+        return response()->json([
+            'message' => 'Select either organization_id or company_id, not both.',
+        ], 422);
     }
+
+    $rows = MainLocation::query()
+        ->select(
+            'id',
+            'name',
+            'organization_id',
+            'company_id',
+            'country_id',
+            'region_id',
+            'district_id',
+            'city_id'
+        )
+        ->when(
+            $request->filled('organization_id'),
+            fn ($q) => $q->where('organization_id', $request->integer('organization_id'))
+        )
+        ->when(
+            $request->filled('company_id'),
+            fn ($q) => $q->where('company_id', $request->integer('company_id'))
+        )
+        ->orderBy('name')
+        ->get();
+
+    return response()->json($rows);
+}
 
 
     public function store(Request $request)
