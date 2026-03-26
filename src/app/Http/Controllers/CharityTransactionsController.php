@@ -7,144 +7,109 @@ use App\Models\CharityTransactionShare;
 use App\Models\CommissionProfiles;
 use App\Models\CommissionProfilesShares;
 use App\Models\Devices;
-use App\Models\Organization;
+
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Auth;
+
 use Illuminate\Support\Facades\DB;
 use App\Services\ScalefusionService;
+use App\Http\Controllers\Concerns\ResolvesCharityReportFilters;
 
 class CharityTransactionsController extends Controller
 {
+
+    use ResolvesCharityReportFilters;
+
+
     public function index(Request $request)
-    {
-        $today = Carbon::now('Asia/Muscat')->toDateString();
+{
+    ['start' => $start, 'end' => $end] = $this->resolveCharityDateRange('today');
 
-        $perPage = (int) $request->query('per_page', 10);
-        $perPage = max(1, min($perPage, 50)); // safety limit
+    $perPage = (int) $request->query('per_page', 10);
+    $perPage = max(1, min($perPage, 50));
 
-        $paginator = CharityTransactions::with([
-            'device',
-            'device.devicemodel',
-            'device.devicebrand',
-            'charityLocation',
-            'charityLocation.main_location',
-            'bank',
-            'charitytransactionshares',
-            'charitytransactionshares.comissionProfileShare',
-            'charitytransactionshares.comissionProfileShare.organization',
-        ])
-            ->whereDate('created_at', $today)
-            ->where('status', 'success')
-            ->orderByDesc('created_at')
-            ->paginate($perPage);
+    $paginator = CharityTransactions::with([
+        'device',
+        'device.devicemodel',
+        'device.devicebrand',
+        'charityLocation',
+        'charityLocation.main_location',
+        'bank',
+        'charitytransactionshares',
+        'charitytransactionshares.comissionProfileShare',
+        'charitytransactionshares.comissionProfileShare.organization',
+    ])
+        ->whereBetween('created_at', [$start, $end])
+        ->whereIn('status', $this->charitySuccessStatuses())
+        ->orderByDesc('created_at')
+        ->paginate($perPage);
 
+    return response()->json([
+        'success' => true,
+        'data' => $paginator->items(),
+        'meta' => [
+            'current_page' => $paginator->currentPage(),
+            'last_page' => $paginator->lastPage(),
+            'per_page' => $paginator->perPage(),
+            'total' => $paginator->total(),
+            'from' => $paginator->firstItem(),
+            'to' => $paginator->lastItem(),
+        ],
+        'message' => 'Charity transactions retrieved successfully.',
+    ], 200);
+}
+
+public function index_all(Request $request)
+{
+    try {
+        ['start' => $start, 'end' => $end] = $this->resolveCharityRangeFromRequest($request);
+    } catch (\Throwable $e) {
         return response()->json([
-            'success' => true,
-            'data' => $paginator->items(), // keep your frontend simple
-            'meta' => [
-                'current_page' => $paginator->currentPage(),
-                'last_page' => $paginator->lastPage(),
-                'per_page' => $paginator->perPage(),
-                'total' => $paginator->total(),
-                'from' => $paginator->firstItem(),
-                'to' => $paginator->lastItem(),
-            ],
-            'message' => 'Charity transactions retrieved successfully.',
-        ], 200);
+            'message' => 'Invalid date range. Use YYYY-MM-DD.',
+        ], 422);
     }
 
-    public function index_all(Request $request)
-    {
-        $range = $request->input('range', '7d'); // 7d, 30d, 6m, custom
-        $from = $request->input('from');
-        $to = $request->input('to');
+    $perPage = max(1, min((int) $request->input('per_page', 10), 100));
+    $successPage = max(1, (int) $request->input('success_page', 1));
+    $failedPage = max(1, (int) $request->input('failed_page', 1));
 
-        $end = Carbon::today()->endOfDay();
+    $base = CharityTransactions::with([
+        'device',
+        'device.DeviceModel',
+        'device.DeviceModel.DeviceBrand',
+        'bank',
+        'charityLocation',
+        'charityLocation.main_location',
+        'charitytransactionshares',
+        'charitytransactionshares.comissionProfileShare',
+        'charitytransactionshares.comissionProfileShare.organization',
+    ])->whereBetween('created_at', [$start, $end]);
 
-        $perPage = (int) $request->input('per_page', 10);
-        $perPage = max(1, min($perPage, 100)); // safety
+    $successQuery = (clone $base)->whereIn('status', $this->charitySuccessStatuses());
+    $failedQuery = (clone $base)->whereIn('status', $this->charityFailedStatuses());
 
-        $successPage = (int) $request->input('success_page', 1);
-        $failedPage = (int) $request->input('failed_page', 1);
+    $successAmount = (float) (clone $successQuery)->sum('total_amount');
+    $successCount = (int) (clone $successQuery)->count();
+    $failedAmount = (float) (clone $failedQuery)->sum('total_amount');
+    $failedCount = (int) (clone $failedQuery)->count();
 
-        
-        switch ($range) {
-            case '30d':
-                $start = $end->copy()->subDays(29)->startOfDay();
-                break;
+    $success = (clone $successQuery)
+        ->orderByDesc('created_at')
+        ->paginate($perPage, ['*'], 'success_page', $successPage);
 
-            case '6m':
-                $start = $end->copy()->subMonthsNoOverflow(6)->startOfDay();
-                break;
+    $failed = (clone $failedQuery)
+        ->orderByDesc('created_at')
+        ->paginate($perPage, ['*'], 'failed_page', $failedPage);
 
-            case 'custom':
-                if (!$from || !$to) {
-                    return response()->json([
-                        'message' => 'From and to dates are required for custom range',
-                    ], 422);
-                }
-                $start = Carbon::parse($from)->startOfDay();
-                $end = Carbon::parse($to)->endOfDay();
-                break;
-            case 'today':
-                $start = Carbon::today()->startOfDay();
-                $end = Carbon::today()->endOfDay();
-                break;
-
-            case '7d':
-            default:
-                $start = $end->copy()->subDays(6)->startOfDay();
-                break;
-        }
-
-        $base = CharityTransactions::with([
-            'device',
-            'device.DeviceModel',
-            'device.DeviceModel.DeviceBrand',  // or DeviceModel.DeviceBrand if you want
-            'bank',
-            'charityLocation',
-            'charityLocation.main_location',
-            'charitytransactionshares',
-            'charitytransactionshares.comissionProfileShare',
-            'charitytransactionshares.comissionProfileShare.organization',
-        ])
-            ->whereBetween('created_at', [$start, $end]);
-
-        // success + failed queries
-        $successQuery = (clone $base)->where('status', 'success');
-        $failedQuery = (clone $base)->where('status', 'fail');
-
-        $successAmount = (clone $successQuery)->sum('total_amount');
-        $successCount = (clone $successQuery)->count();
-
-        $failedAmount = (clone $failedQuery)->sum('total_amount');
-        $failedCount = (clone $failedQuery)->count();
-
-        // ✅ Paginated lists (separate page params)
-        $success = (clone $successQuery)
-            ->orderByDesc('created_at')
-            ->paginate($perPage, ['*'], 'success_page', $successPage);
-
-        $failed = (clone $failedQuery)
-            ->orderByDesc('created_at')
-            ->paginate($perPage, ['*'], 'failed_page', $failedPage);
-
-        return response()->json([
-            'totals' => [
-                'success' => [
-                    'amount' => (float) $successAmount,
-                    'count' => (int) $successCount,
-                ],
-                'failed' => [
-                    'amount' => (float) $failedAmount,
-                    'count' => (int) $failedCount,
-                ],
-            ],
-            'success' => $success,
-            'failed' => $failed,
-        ]);
-    }
+    return response()->json([
+        'totals' => [
+            'success' => ['amount' => $successAmount, 'count' => $successCount],
+            'failed' => ['amount' => $failedAmount, 'count' => $failedCount],
+        ],
+        'success' => $success,
+        'failed' => $failed,
+    ]);
+}
 
     /**
      * Advanced transaction list for admin filtering (bank, date range, location, org, etc).
@@ -211,8 +176,8 @@ class CharityTransactionsController extends Controller
 
     if ($request->filled('status')) {
         $status = (string) $request->input('status');
-        if (in_array($status, ['success', 'fail', 'pending', 'Cancelled'], true)) {
-            $base->where('status', $status);
+        if (in_array($status, ['success', 'successful', 'fail', 'failed', 'pending', 'Cancelled', 'cancelled'], true)) {
+            $this->applyNormalizedStatusFilter($base, $status);
         }
     }
 
@@ -242,14 +207,14 @@ class CharityTransactionsController extends Controller
     $allAmount = (float) (clone $base)->sum('total_amount');
     $allCount = (int) (clone $base)->count();
 
-    $successAmount = (float) (clone $base)->where('status', 'success')->sum('total_amount');
-    $successCount = (int) (clone $base)->where('status', 'success')->count();
-
-    $failAmount = (float) (clone $base)->where('status', 'fail')->sum('total_amount');
-    $failCount = (int) (clone $base)->where('status', 'fail')->count();
-
-    $cancelledAmount = (float) (clone $base)->where('status', 'Cancelled')->sum('total_amount');
-    $cancelledCount = (int) (clone $base)->where('status', 'Cancelled')->count();
+    $successAmount = (float) (clone $base)->whereIn('status', $this->charitySuccessStatuses())->sum('total_amount');
+    $successCount = (int) (clone $base)->whereIn('status', $this->charitySuccessStatuses())->count();
+    
+    $failAmount = (float) (clone $base)->whereIn('status', $this->charityFailedStatuses())->sum('total_amount');
+    $failCount = (int) (clone $base)->whereIn('status', $this->charityFailedStatuses())->count();
+    
+    $cancelledAmount = (float) (clone $base)->whereIn('status', $this->charityCancelledStatuses())->sum('total_amount');
+    $cancelledCount = (int) (clone $base)->whereIn('status', $this->charityCancelledStatuses())->count();
 
     $paginator = (clone $base)
         ->orderBy($sortBy, $sortDir)

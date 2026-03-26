@@ -5,12 +5,15 @@ namespace App\Http\Controllers;
 use App\Models\Country;
 use App\Models\Devices;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
+ 
 use App\Models\CharityTransactions;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use App\Http\Controllers\Concerns\ResolvesCharityReportFilters;
 
 class CharityLocationStatusController extends Controller
 {
+    use ResolvesCharityReportFilters;
+
     public function filters()
     {
         try {
@@ -63,15 +66,15 @@ class CharityLocationStatusController extends Controller
 
     private function paginatorMeta(LengthAwarePaginator $paginator): array
     {
-        return [
-            'current_page' => $paginator->currentPage(),
-            'last_page' => $paginator->lastPage(),
-            'per_page' => $paginator->perPage(),
-            'total' => $paginator->total(),
-            'from' => $paginator->firstItem(),
-            'to' => $paginator->lastItem(),
-            'has_more_pages' => $paginator->hasMorePages(),
-        ];
+            return [
+                'current_page' => $paginator->currentPage(),
+                'last_page' => $paginator->lastPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+                'from' => $paginator->firstItem(),
+                'to' => $paginator->lastItem(),
+                'has_more_pages' => $paginator->hasMorePages(),
+            ];
     }
 
     public function index(Request $request)
@@ -90,32 +93,12 @@ class CharityLocationStatusController extends Controller
                 ], 422);
             }
 
-            $range = $request->input('range', '7d');
-            $from = $request->input('from');
-            $to = $request->input('to');
-
-            $end = Carbon::today()->endOfDay();
-
-            switch ($range) {
-                case '30d':
-                    $start = $end->copy()->subDays(29)->startOfDay();
-                    break;
-                case '6m':
-                    $start = $end->copy()->subMonthsNoOverflow(6)->startOfDay();
-                    break;
-                case 'custom':
-                    if (!$from || !$to) {
-                        return response()->json([
-                            'message' => 'From and to dates are required for custom range',
-                        ], 422);
-                    }
-                    $start = Carbon::parse($from)->startOfDay();
-                    $end = Carbon::parse($to)->endOfDay();
-                    break;
-                case '7d':
-                default:
-                    $start = $end->copy()->subDays(6)->startOfDay();
-                    break;
+            try {
+                ['start' => $start, 'end' => $end] = $this->resolveCharityRangeFromRequest($request);
+            } catch (\Throwable $e) {
+                return response()->json([
+                    'message' => 'Invalid date range. Use YYYY-MM-DD.',
+                ], 422);
             }
 
             $scopeType = null;
@@ -182,8 +165,8 @@ class CharityLocationStatusController extends Controller
                 $base->where('charity_location_id', $charityLocationId);
             }
 
-            $successQuery = (clone $base)->where('status', 'success');
-            $failedQuery = (clone $base)->where('status', 'fail');
+            $successQuery = (clone $base)->whereIn('status', $this->successStatuses());
+            $failedQuery = (clone $base)->whereIn('status', $this->failedStatuses());
 
             $successTotal = (float) (clone $successQuery)->sum('total_amount');
             $failedTotal = (float) (clone $failedQuery)->sum('total_amount');
@@ -201,7 +184,7 @@ class CharityLocationStatusController extends Controller
             $limit = max(1, (int) $request->input('top_devices_limit', 10));
 
             $topAgg = (clone $base)
-                ->where('status', 'success')
+            ->whereIn('status', $this->charitySuccessStatuses())
                 ->whereNotNull('device_id')
                 ->selectRaw('device_id, COUNT(*) as success_count, SUM(total_amount) as success_amount, MAX(created_at) as last_tx_at')
                 ->groupBy('device_id')
