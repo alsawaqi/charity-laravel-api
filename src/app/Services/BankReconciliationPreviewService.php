@@ -18,6 +18,7 @@ class BankReconciliationPreviewService
 {
     public function preview(Banks $bank, string $statementDate, UploadedFile $file): array
     {
+        [$statementStart, $statementEnd] = $this->statementDayWindow($statementDate);
         $config = $this->resolveBankConfig($bank);
 
         if (($config['file_type'] ?? 'spreadsheet') === 'csv') {
@@ -97,7 +98,9 @@ class BankReconciliationPreviewService
 
         $dbTransactions = CharityTransactions::query()
             ->where('bank_transaction_id', $bank->id)
-            ->whereDate('created_at', $statementDate)
+            ->where('created_at', '>=', $statementStart)
+            ->where('created_at', '<', $statementEnd)
+            ->whereIn('status', $this->successStatuses())
             ->orderBy('id')
             ->get([
                 'id',
@@ -852,5 +855,19 @@ class BankReconciliationPreviewService
                 ],
             ], 422)
         );
+    }
+
+    private function successStatuses(): array
+    {
+        return ['success', 'successful'];
+    }
+
+    private function statementDayWindow(string $statementDate): array
+    {
+        $timezone = config('app.timezone', 'Asia/Muscat');
+        $start = Carbon::createFromFormat('Y-m-d', $statementDate, $timezone)->startOfDay();
+        $end = $start->copy()->addDay();
+
+        return [$start, $end];
     }
 }

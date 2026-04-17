@@ -37,6 +37,13 @@ class ScalefusionController extends Controller
             ]);
     }
 
+    private function formArrayBody(string $key, array $values): string
+    {
+        return collect($values)
+            ->map(fn ($value) => rawurlencode($key . '[]') . '=' . rawurlencode((string) $value))
+            ->implode('&');
+    }
+
     public function devices()
     {
         try {
@@ -58,6 +65,64 @@ class ScalefusionController extends Controller
             return response()->json($res->json(), $res->status());
         } catch (ConnectionException $e) {
             return response()->json(['message' => 'Scalefusion unreachable', 'error' => $e->getMessage()], 503);
+        }
+    }
+
+    public function deviceLocations(Request $request)
+    {
+        $data = $request->validate([
+            'device_id' => 'required|integer',
+            'date' => 'required|date_format:Y-m-d',
+        ]);
+
+        try {
+            $res = $this->client()->get(
+                $this->v1('/devices/' . $data['device_id'] . '/locations.json'),
+                ['date' => $data['date']]
+            );
+
+            if (!$res->ok()) {
+                return response()->json([
+                    'message' => 'Failed to fetch device route from Scalefusion.',
+                    'status' => $res->status(),
+                    'raw' => $res->json(),
+                ], $res->status());
+            }
+
+            $items = collect($res->json() ?? [])
+                ->filter(fn ($row) => is_array($row))
+                ->map(function (array $row) use ($data) {
+                    $latitude = isset($row['latitude']) ? (float) $row['latitude'] : null;
+                    $longitude = isset($row['longitude']) ? (float) $row['longitude'] : null;
+                    $accuracy = isset($row['accuracy']) ? (float) $row['accuracy'] : null;
+                    $dateTime = $row['date_time'] ?? null;
+
+                    return [
+                        'device_id' => (int) ($row['device_id'] ?? $row['deviceId'] ?? $data['device_id']),
+                        'location_id' => isset($row['location_id']) ? (int) $row['location_id'] : null,
+                        'address' => $row['address'] ?? null,
+                        'latitude' => $latitude,
+                        'longitude' => $longitude,
+                        'accuracy' => $accuracy,
+                        'date_time' => is_numeric($dateTime) ? (int) $dateTime : null,
+                        'created_at_tz' => $row['created_at_tz'] ?? null,
+                    ];
+                })
+                ->filter(fn ($row) => $row['latitude'] !== null && $row['longitude'] !== null)
+                ->sortBy(fn ($row) => $row['date_time'] ?? $row['created_at_tz'] ?? 0)
+                ->values();
+
+            return response()->json([
+                'device_id' => $data['device_id'],
+                'date' => $data['date'],
+                'count' => $items->count(),
+                'items' => $items,
+            ]);
+        } catch (ConnectionException $e) {
+            return response()->json([
+                'message' => 'Scalefusion unreachable',
+                'error' => $e->getMessage(),
+            ], 503);
         }
     }
 
@@ -106,16 +171,14 @@ class ScalefusionController extends Controller
             'device_ids.*' => 'integer',
         ]);
 
-        // Scalefusion expects formData device_ids[]
-        $payload = [];
-        foreach ($data['device_ids'] as $i => $id) {
-            $payload["device_ids[$i]"] = $id; // sends device_ids[]=... style
-        }
+        $body = $this->formArrayBody('device_ids', $data['device_ids']);
 
         try {
             $res = $this->client()
-                ->asForm()
-                ->post($this->v1('/devices/lock.json'), $payload);
+                ->withHeaders(['Content-Type' => 'application/x-www-form-urlencoded'])
+                ->send('POST', $this->v1('/devices/lock.json'), [
+                    'body' => $body,
+                ]);
 
             return response()->json($res->json(), $res->status());
         } catch (ConnectionException $e) {
@@ -134,15 +197,14 @@ class ScalefusionController extends Controller
             'device_ids.*' => 'integer',
         ]);
 
-        $payload = [];
-        foreach ($data['device_ids'] as $i => $id) {
-            $payload["device_ids[$i]"] = $id;
-        }
+        $body = $this->formArrayBody('device_ids', $data['device_ids']);
 
         try {
             $res = $this->client()
-                ->asForm()
-                ->post($this->v1('/devices/unlock.json'), $payload);
+                ->withHeaders(['Content-Type' => 'application/x-www-form-urlencoded'])
+                ->send('POST', $this->v1('/devices/unlock.json'), [
+                    'body' => $body,
+                ]);
 
             return response()->json($res->json(), $res->status());
         } catch (ConnectionException $e) {

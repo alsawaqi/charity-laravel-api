@@ -8,6 +8,8 @@ services:
       - /home/abdallah644/projects/my-projects/charity/charity-laravel-api/src:/var/www/html
     command: >
       sh -c "chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache && php-fpm"  
+    depends_on:
+      - redis
     networks:
       - charity_net
 
@@ -45,6 +47,31 @@ services:
     networks:
       - charity_net
 
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    networks:
+      - charity_net
+
+  redisinsight:
+    image: redis/redisinsight:latest
+    restart: unless-stopped
+    depends_on:
+      - redis
+    ports:
+      - "5540:5540"
+    volumes:
+      - redisinsight-data:/data
+    networks:
+      - charity_net
+
 networks:
   charity_net:
     external: true
+
+volumes:
+  redis-data:
+  redisinsight-data:

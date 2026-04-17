@@ -13,6 +13,11 @@ use App\Models\CharityTransactions;
 
 class CharityDeviceStatusController extends Controller
 {
+    private function reportTimezone(): string
+    {
+        return config('app.timezone', 'Asia/Muscat');
+    }
+
     private function successStatuses(): array
     {
         return ['success', 'successful'];
@@ -28,8 +33,9 @@ class CharityDeviceStatusController extends Controller
         $range = (string) $request->input('range', '7d');
         $from  = $request->input('from');
         $to    = $request->input('to');
+        $timezone = $this->reportTimezone();
 
-        $currentEnd = Carbon::today()->endOfDay();
+        $currentEnd = Carbon::today($timezone)->endOfDay();
 
         switch ($range) {
             case '30d':
@@ -46,8 +52,8 @@ class CharityDeviceStatusController extends Controller
                         'message' => 'From and to dates are required for custom range',
                     ], 422));
                 }
-                $currentStart = Carbon::parse($from)->startOfDay();
-                $currentEnd   = Carbon::parse($to)->endOfDay();
+                $currentStart = Carbon::createFromFormat('Y-m-d', (string) $from, $timezone)->startOfDay();
+                $currentEnd   = Carbon::createFromFormat('Y-m-d', (string) $to, $timezone)->endOfDay();
                 $currentLabel = 'Custom Range';
                 break;
             case '7d':
@@ -60,18 +66,29 @@ class CharityDeviceStatusController extends Controller
         $days = max(1, $currentStart->copy()->startOfDay()->diffInDays($currentEnd->copy()->startOfDay()) + 1);
         $previousEnd = $currentStart->copy()->subDay()->endOfDay();
         $previousStart = $previousEnd->copy()->subDays($days - 1)->startOfDay();
+        $currentEndExclusive = $currentEnd->copy()->addDay()->startOfDay();
+        $previousEndExclusive = $currentStart->copy();
         $previousLabel = $range === 'custom' ? 'Previous Matching Period' : "Previous {$days} Days";
 
         return [
             'range' => $range,
             'current_start' => $currentStart,
             'current_end' => $currentEnd,
+            'current_end_exclusive' => $currentEndExclusive,
             'previous_start' => $previousStart,
             'previous_end' => $previousEnd,
+            'previous_end_exclusive' => $previousEndExclusive,
             'current_label' => $currentLabel,
             'previous_label' => $previousLabel,
             'days' => $days,
         ];
+    }
+
+    private function applyCreatedAtWindow($query, Carbon $start, Carbon $endExclusive)
+    {
+        return $query
+            ->where('created_at', '>=', $start)
+            ->where('created_at', '<', $endExclusive);
     }
 
     private function applyTransactionFilters($query, Request $request): void
@@ -116,6 +133,7 @@ class CharityDeviceStatusController extends Controller
         $range = $this->resolveRanges($request);
         $currentStart = $range['current_start'];
         $currentEnd = $range['current_end'];
+        $currentEndExclusive = $range['current_end_exclusive'];
 
         $companies = Company::query()
             ->select('id', 'name')
@@ -183,7 +201,8 @@ class CharityDeviceStatusController extends Controller
                 $q->select(DB::raw(1))
                     ->from('charity_transactions as ct')
                     ->whereColumn('ct.device_id', 'devices.id')
-                    ->whereBetween('ct.created_at', [$currentStart, $currentEnd])
+                    ->where('ct.created_at', '>=', $currentStart)
+                    ->where('ct.created_at', '<', $currentEndExclusive)
                     ->whereIn('ct.status', $failedStatuses);
 
                 $this->applyTransactionFilters($q, $request);
@@ -193,7 +212,8 @@ class CharityDeviceStatusController extends Controller
                 $q->select(DB::raw(1))
                     ->from('charity_transactions as ct')
                     ->whereColumn('ct.device_id', 'devices.id')
-                    ->whereBetween('ct.created_at', [$currentStart, $currentEnd]);
+                    ->where('ct.created_at', '>=', $currentStart)
+                    ->where('ct.created_at', '<', $currentEndExclusive);
 
                 $this->applyTransactionFilters($q, $request);
             });
@@ -267,8 +287,10 @@ class CharityDeviceStatusController extends Controller
         $range = $this->resolveRanges($request);
         $currentStart = $range['current_start'];
         $currentEnd = $range['current_end'];
+        $currentEndExclusive = $range['current_end_exclusive'];
         $previousStart = $range['previous_start'];
         $previousEnd = $range['previous_end'];
+        $previousEndExclusive = $range['previous_end_exclusive'];
 
         $device = Devices::query()
             ->with([
@@ -295,14 +317,16 @@ class CharityDeviceStatusController extends Controller
                 'mainLocation:id,name',
                 'charityLocation:id,name',
             ])
-            ->where('device_id', $deviceId)
-            ->whereBetween('created_at', [$currentStart, $currentEnd]);
+            ->where('device_id', $deviceId);
+
+        $this->applyCreatedAtWindow($base, $currentStart, $currentEndExclusive);
 
         $this->applyTransactionFilters($base, $request);
 
         $previousBase = CharityTransactions::query()
-            ->where('device_id', $deviceId)
-            ->whereBetween('created_at', [$previousStart, $previousEnd]);
+            ->where('device_id', $deviceId);
+
+        $this->applyCreatedAtWindow($previousBase, $previousStart, $previousEndExclusive);
 
         $this->applyTransactionFilters($previousBase, $request);
 

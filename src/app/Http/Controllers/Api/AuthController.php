@@ -10,27 +10,52 @@ use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
+    private function transformUser(User $user): array
+    {
+        $user->loadMissing(
+            'organization:id,name',
+            'dashboardRoles.permissions',
+            'dashboardDirectPermissions'
+        );
+
+        $permissions = $user->resolvedDashboardPermissions();
+
+        return [
+            'id' => $user->id,
+            'name' => $user->name,
+            'email' => $user->email,
+            'organization_id' => $user->organization_id,
+            'organization' => $user->organization
+                ? [
+                    'id' => $user->organization->id,
+                    'name' => $user->organization->name,
+                ]
+                : null,
+            'dashboard_access' => [
+                'has_access' => $user->canAccessDashboard(),
+                'full_access' => $user->hasDashboardFullAccess(),
+            ],
+            'dashboard_roles' => $user->dashboardRoles->map(fn ($role) => [
+                'id' => $role->id,
+                'name' => $role->name,
+                'slug' => $role->slug,
+                'grants_all' => (bool) $role->grants_all,
+            ])->values(),
+            'dashboard_permissions' => $permissions->map(fn ($permission) => [
+                'id' => $permission->id,
+                'key' => $permission->key,
+                'label' => $permission->label,
+                'group' => $permission->group,
+                'path' => $permission->path,
+            ])->values(),
+        ];
+    }
+
     public function register(Request $request)
     {
-        $data = $request->validate([
-            'name'     => ['required', 'string', 'max:255'],
-            'email'    => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
-            'password' => ['required', 'string', 'min:8', 'confirmed'], // needs password_confirmation
-        ]);
-
-        $user = User::create([
-            'name'     => $data['name'],
-            'email'    => $data['email'],
-            'password' => Hash::make($data['password']),
-        ]);
-
-        // Create token
-        // $token = $user->createToken('charity-dashboard')->plainTextToken;
-
         return response()->json([
-            'user'  => $user,
-           
-        ], 201);
+            'message' => 'Self-service registration is disabled for the admin dashboard.',
+        ], 403);
     }
 
     public function login(Request $request)
@@ -48,13 +73,19 @@ class AuthController extends Controller
             ]);
         }
 
+        if (! $user->canAccessDashboard()) {
+            return response()->json([
+                'message' => 'You are not allowed to access the admin dashboard.',
+            ], 403);
+        }
+
         // Optionally delete old tokens for this device/session
         // $user->tokens()->delete();
 
         $token = $user->createToken('charity-dashboard')->plainTextToken;
 
         return response()->json([
-            'user'  => $user,
+            'user'  => $this->transformUser($user),
             'token' => $token,
         ]);
     }
@@ -62,7 +93,7 @@ class AuthController extends Controller
     public function me(Request $request)
     {
         return response()->json([
-            'user' => $request->user(),
+            'user' => $this->transformUser($request->user()),
         ]);
     }
 

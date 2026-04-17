@@ -16,6 +16,8 @@ class BankReconciliationCommitService
 {
     public function commit(Banks $bank, string $statementDate, array $rows): array
     {
+        [$statementStart, $statementEnd] = $this->statementDayWindow($statementDate);
+
         if (empty($rows)) {
             throw ValidationException::withMessages([
                 'rows' => ['There are no rows to import.'],
@@ -67,7 +69,9 @@ class BankReconciliationCommitService
 
         $existingTransactions = CharityTransactions::query()
             ->where('bank_transaction_id', $bank->id)
-            ->whereDate('created_at', $statementDate)
+            ->where('created_at', '>=', $statementStart)
+            ->where('created_at', '<', $statementEnd)
+            ->whereIn('status', $this->successStatuses())
             ->get([
                 'id',
                 'terminal_id',
@@ -100,6 +104,7 @@ class BankReconciliationCommitService
             $existingByKey,
             $bank,
             $statementDate,
+            $statementStart,
             &$inserted,
             &$skippedExisting,
             &$errors
@@ -198,7 +203,7 @@ class BankReconciliationCommitService
                     'longitude' => 0.00,
                     'terminal_id' => $device->terminal_id,
 
-                    'created_at' => Carbon::parse($statementDate)->startOfDay(),
+                    'created_at' => $statementStart->copy(),
                     'updated_at' => now(),
                 ]);
 
@@ -484,5 +489,19 @@ class BankReconciliationCommitService
     private function buildKey(?string $terminalId, ?string $authCode): string
     {
         return ($terminalId ?? '') . '|' . ($authCode ?? '');
+    }
+
+    private function successStatuses(): array
+    {
+        return ['success', 'successful'];
+    }
+
+    private function statementDayWindow(string $statementDate): array
+    {
+        $timezone = config('app.timezone', 'Asia/Muscat');
+        $start = Carbon::createFromFormat('Y-m-d', $statementDate, $timezone)->startOfDay();
+        $end = $start->copy()->addDay();
+
+        return [$start, $end];
     }
 }

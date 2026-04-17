@@ -39,8 +39,8 @@ RUN apt-get update && ACCEPT_EULA=Y apt-get install -y \
     msodbcsql18 \
     mssql-tools18
 
-RUN pecl install pdo_sqlsrv sqlsrv \
-    && docker-php-ext-enable pdo_sqlsrv sqlsrv
+RUN pecl install pdo_sqlsrv sqlsrv redis \
+    && docker-php-ext-enable pdo_sqlsrv sqlsrv redis
 
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg
 

@@ -101,6 +101,8 @@ class CharityLocationStatusController extends Controller
                 ], 422);
             }
 
+            $endExclusive = $end->copy()->addDay()->startOfDay();
+
             $scopeType = null;
             $scopeId = null;
 
@@ -143,7 +145,8 @@ class CharityLocationStatusController extends Controller
                     'company:id,name',
                     'organization:id,name',
                 ])
-                ->whereBetween('created_at', [$start, $end]);
+                ->where('created_at', '>=', $start)
+                ->where('created_at', '<', $endExclusive);
 
             // Apply all selected location filters directly on charity_transactions snapshot columns
             if ($countryId) {
@@ -165,8 +168,8 @@ class CharityLocationStatusController extends Controller
                 $base->where('charity_location_id', $charityLocationId);
             }
 
-            $successQuery = (clone $base)->whereIn('status', $this->successStatuses());
-            $failedQuery = (clone $base)->whereIn('status', $this->failedStatuses());
+            $successQuery = (clone $base)->whereIn('status', $this->charitySuccessStatuses());
+            $failedQuery = (clone $base)->whereIn('status', $this->charityFailedStatuses());
 
             $successTotal = (float) (clone $successQuery)->sum('total_amount');
             $failedTotal = (float) (clone $failedQuery)->sum('total_amount');
@@ -217,7 +220,7 @@ class CharityLocationStatusController extends Controller
             })->values();
 
                     $byHourRaw = (clone $base)
-                        ->where('status', 'success')
+                        ->whereIn('status', $this->charitySuccessStatuses())
                         ->selectRaw('((EXTRACT(DOW FROM created_at)::int + 6) % 7) as weekday_index, EXTRACT(HOUR FROM created_at)::int as hour_of_day, SUM(total_amount) as total_amount')
                         ->groupBy('weekday_index', 'hour_of_day')
                         ->orderBy('weekday_index')

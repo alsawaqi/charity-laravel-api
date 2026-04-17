@@ -6,6 +6,7 @@ use App\Models\Devices;
 use App\Models\MainLocation;
 use Illuminate\Http\Request;
 use App\Models\CharityLocation;
+use App\Models\DeviceModel;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\DB;
 use App\Services\ScalefusionService;
@@ -283,6 +284,57 @@ class DeviceController extends Controller
                 'mainLocation.company:id,name',
             ])
         );
+    }
+
+    public function editorShow(Devices $device)
+    {
+        $device->load([
+            'deviceBrand',
+            'deviceModel',
+            'bank',
+            'country',
+            'district',
+            'region',
+            'city',
+            'charityLocation',
+            'commissionProfile',
+            'company:id,name',
+            'mainLocation:id,name,company_id',
+            'mainLocation.company:id,name',
+        ]);
+
+        $payload = $device->toArray();
+
+        if (blank($payload['terminal_id'] ?? null)) {
+            $payload['terminal_id'] = DB::table('charity_transactions')
+                ->where('device_id', $device->id)
+                ->whereNotNull('terminal_id')
+                ->where('terminal_id', '<>', '')
+                ->orderByDesc('id')
+                ->value('terminal_id');
+        }
+
+        $payload['available_device_models'] = DeviceModel::query()
+            ->select('id', 'name', 'device_brand_id')
+            ->when(
+                $device->device_brand_id,
+                fn ($query) => $query->where('device_brand_id', $device->device_brand_id)
+            )
+            ->orderBy('name')
+            ->get()
+            ->toArray();
+
+        $payload['available_charity_locations'] = CharityLocation::query()
+            ->select('id', 'name', 'main_location_id', 'organization_id')
+            ->when(
+                $device->main_location_id,
+                fn ($query) => $query->where('main_location_id', $device->main_location_id)
+            )
+            ->orderBy('name')
+            ->get()
+            ->toArray();
+
+        return response()->json($payload);
     }
 
     public function store(Request $request)
