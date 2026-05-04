@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Organization;
 use App\Models\User;
+use Illuminate\Support\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
@@ -28,6 +29,8 @@ class OrganizationController extends Controller
                 'region:id,name',
                 'city:id,name',
                 'bank:id,name',
+                'latestLoginLog.user:id,name,email',
+                'currentLoginLog.user:id,name,email',
             ])
             ->withCount([
                 'children',
@@ -97,7 +100,10 @@ class OrganizationController extends Controller
 
         $query->orderBy($sortBy, $sortDir);
 
-        return response()->json($query->paginate($perPage));
+        $paginator = $query->paginate($perPage);
+        $paginator->getCollection()->transform(fn (Organization $organization) => $this->attachOrganizerLogin($organization));
+
+        return response()->json($paginator);
     }
 
     public function listAll()
@@ -187,16 +193,18 @@ class OrganizationController extends Controller
 
     public function show(Organization $organization)
     {
-        return response()->json(
-            $organization->load([
-                'parent:id,name',
-                'primaryUser:id,name,email,organization_id',
-                'country:id,name',
-                'region:id,name',
-                'city:id,name',
-                'bank:id,name',
-            ])
-        );
+        $organization->load([
+            'parent:id,name',
+            'primaryUser:id,name,email,organization_id',
+            'country:id,name',
+            'region:id,name',
+            'city:id,name',
+            'bank:id,name',
+            'latestLoginLog.user:id,name,email',
+            'currentLoginLog.user:id,name,email',
+        ]);
+
+        return response()->json($this->attachOrganizerLogin($organization, true));
     }
 
     public function update(Request $request, Organization $organization)
@@ -297,16 +305,18 @@ class OrganizationController extends Controller
             ], 500);
         }
 
-        return response()->json(
-            $organization->fresh()->load([
-                'parent:id,name',
-                'primaryUser:id,name,email,organization_id',
-                'country:id,name',
-                'region:id,name',
-                'city:id,name',
-                'bank:id,name',
-            ])
-        );
+        $freshOrganization = $organization->fresh()->load([
+            'parent:id,name',
+            'primaryUser:id,name,email,organization_id',
+            'country:id,name',
+            'region:id,name',
+            'city:id,name',
+            'bank:id,name',
+            'latestLoginLog.user:id,name,email',
+            'currentLoginLog.user:id,name,email',
+        ]);
+
+        return response()->json($this->attachOrganizerLogin($freshOrganization, true));
     }
 
     public function destroy(Organization $organization)
@@ -316,5 +326,66 @@ class OrganizationController extends Controller
         return response()->json([
             'message' => 'Organization deleted successfully',
         ]);
+    }
+
+    private function attachOrganizerLogin(Organization $organization, bool $includeHistory = false): Organization
+    {
+        $current = $organization->currentLoginLog;
+        $latest = $organization->latestLoginLog;
+        $summaryLog = $current ?: $latest;
+
+        $organization->setAttribute('organizer_login', [
+            'status' => $current ? 'online' : 'offline',
+            'is_online' => (bool) $current,
+            'latest_login_at' => $this->formatLoginDate($summaryLog?->login_at),
+            'latest_logout_at' => $this->formatLoginDate($summaryLog?->logout_at),
+            'user' => $summaryLog?->user ? [
+                'id' => $summaryLog->user->id,
+                'name' => $summaryLog->user->name,
+                'email' => $summaryLog->user->email,
+            ] : null,
+        ]);
+
+        if ($includeHistory) {
+            $history = $organization->loginLogs()
+                ->with('user:id,name,email')
+                ->latest('login_at')
+                ->limit(25)
+                ->get()
+                ->map(fn ($log) => [
+                    'id' => $log->id,
+                    'user_id' => $log->user_id,
+                    'organization_id' => $log->organization_id,
+                    'session_id' => $log->session_id,
+                    'ip_address' => $log->ip_address,
+                    'user_agent' => $log->user_agent,
+                    'login_at' => $this->formatLoginDate($log->login_at),
+                    'logout_at' => $this->formatLoginDate($log->logout_at),
+                    'status' => $log->logout_at ? 'logged_out' : 'online',
+                    'user' => $log->user ? [
+                        'id' => $log->user->id,
+                        'name' => $log->user->name,
+                        'email' => $log->user->email,
+                    ] : null,
+                ]);
+
+            $organization->setAttribute('login_history', $history);
+        }
+
+        $organization->unsetRelation('latestLoginLog');
+        $organization->unsetRelation('currentLoginLog');
+
+        return $organization;
+    }
+
+    private function formatLoginDate($value): ?string
+    {
+        if (! $value) {
+            return null;
+        }
+
+        return Carbon::parse($value)
+            ->timezone(config('app.timezone', 'Asia/Muscat'))
+            ->toAtomString();
     }
 }

@@ -24,6 +24,7 @@ RUN apt-get update && apt-get install -y \
     libjpeg62-turbo-dev \
     libfreetype6-dev \
     && apt-get upgrade -y \
+    && pecl install excimer \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 

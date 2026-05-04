@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\ActivityController;
 use App\Http\Controllers\BankController;
+use App\Http\Controllers\BankDeviceController;
 use App\Http\Controllers\BankReconciliationController;
 use App\Http\Controllers\CashCollectionController;
 use App\Http\Controllers\CharityDeviceStatusController;
@@ -35,6 +36,9 @@ Route::prefix('auth')->group(function () {
 
 Route::post('/donations', [CharityTransactionsController::class, 'store']);
 Route::post('/donations-dhofar', [CharityTransactionsController::class, 'store_dhofar']);
+Route::post('/donations-bank-nizwa', [CharityTransactionsController::class, 'store_bank_nizwa']);
+Route::post('/device-banks/resolve', [BankDeviceController::class, 'resolve']);
+Route::post('/device-banks/password', [BankDeviceController::class, 'updatePassword']);
 
 Route::middleware(['auth:sanctum', 'dashboard.access'])->group(function () {
     Route::prefix('auth')->group(function () {
@@ -111,6 +115,10 @@ Route::middleware(['auth:sanctum', 'dashboard.access'])->group(function () {
         ->middleware('dashboard.permission:dashboard.device-geo-location.view,dashboard.devices.live.view');
     Route::get('/devices/export', [DeviceController::class, 'export'])
         ->middleware('dashboard.permission:dashboard.devices.manage');
+    Route::get('/device-banks', [BankDeviceController::class, 'index'])
+        ->middleware('dashboard.permission:dashboard.devices.manage');
+    Route::get('/device-banks/{device}', [BankDeviceController::class, 'show'])
+        ->middleware('dashboard.permission:dashboard.devices.manage');
 
     Route::get('/device-locations/filters', [DeviceLocationController::class, 'filters'])
         ->middleware('dashboard.permission:dashboard.device-locations.view');
@@ -173,6 +181,11 @@ Route::middleware(['auth:sanctum', 'dashboard.access'])->group(function () {
     Route::get('/ai-dashboard-search', [CharityStatsController::class, 'aiDashboardSearch'])
         ->middleware('dashboard.permission:dashboard.ai.view');
 
+    Route::get('/scalefusion/device-availability/filters', [ScalefusionController::class, 'deviceAvailabilityFilters'])
+        ->middleware('dashboard.permission:dashboard.device-availability.view');
+    Route::get('/scalefusion/device-availabilities', [ScalefusionController::class, 'deviceAvailabilities'])
+        ->middleware('dashboard.permission:dashboard.device-availability.view');
+
     Route::prefix('scalefusion')->middleware(
         'dashboard.permission:dashboard.devices.live.view,dashboard.device-geo-location.view'
     )->group(function () {
@@ -181,6 +194,9 @@ Route::middleware(['auth:sanctum', 'dashboard.access'])->group(function () {
         Route::get('/device/locations', [ScalefusionController::class, 'deviceLocations']);
         Route::post('/device/reboot', [ScalefusionController::class, 'reboot']);
         Route::post('/device/alarm', [ScalefusionController::class, 'alarm']);
+        Route::post('/device/broadcast-message', [ScalefusionController::class, 'broadcastMessage']);
+        Route::post('/device/action', [ScalefusionController::class, 'action']);
+        Route::post('/device/clear-app-data', [ScalefusionController::class, 'clearAppData']);
         Route::post('/devices/lock', [ScalefusionController::class, 'lock']);
         Route::post('/devices/unlock', [ScalefusionController::class, 'unlock']);
         Route::get('/location-geofence', [ScalefusionController::class, 'locationGeofence']);
@@ -284,5 +300,11 @@ Route::middleware(['auth:sanctum', 'dashboard.access'])->group(function () {
     Route::put('/devices/{device}', [DeviceController::class, 'update'])
         ->middleware('dashboard.permission:dashboard.devices.manage');
     Route::delete('/devices/{device}', [DeviceController::class, 'destroy'])
+        ->middleware('dashboard.permission:dashboard.devices.manage');
+    Route::post('/device-banks', [BankDeviceController::class, 'store'])
+        ->middleware('dashboard.permission:dashboard.devices.manage');
+    Route::put('/device-banks/{device}', [BankDeviceController::class, 'update'])
+        ->middleware('dashboard.permission:dashboard.devices.manage');
+    Route::delete('/device-banks/{device}', [BankDeviceController::class, 'destroy'])
         ->middleware('dashboard.permission:dashboard.devices.manage');
 });
