@@ -52,6 +52,23 @@ class Organization extends Model
         return $this->hasMany(User::class);
     }
 
+    public function loginLogs()
+    {
+        return $this->hasMany(OrganizationLoginLog::class);
+    }
+
+    public function latestLoginLog()
+    {
+        return $this->hasOne(OrganizationLoginLog::class)->latestOfMany('login_at');
+    }
+
+    public function currentLoginLog()
+    {
+        return $this->hasOne(OrganizationLoginLog::class)
+            ->whereNull('logout_at')
+            ->latestOfMany('login_at');
+    }
+
     public function primaryUser()
     {
         return $this->hasOne(User::class)->oldest();

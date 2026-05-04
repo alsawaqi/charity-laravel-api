@@ -23,6 +23,23 @@ services:
     networks:
       - charity_net
 
+  reverb:
+    build:
+      context: .
+      dockerfile: docker/dev/php/php.dockerfile
+    volumes:
+      - /home/abdallah644/projects/my-projects/charity/charity-laravel-api/src:/var/www/html
+    working_dir: /var/www/html
+    command: php artisan reverb:start --host=0.0.0.0 --port=8080
+    depends_on:
+      - charity-api-app
+      - redis
+    ports:
+      - "8084:8080"
+    restart: unless-stopped
+    networks:
+      - charity_net
+
   artisan:
     build:
       context: /home/abdallah644/projects/my-projects/charity/charity-laravel-api/src

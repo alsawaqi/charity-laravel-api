@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use App\Events\CharityTransactionCreated;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\DB;
 
 class CharityTransactions extends Model
 {
@@ -17,6 +19,15 @@ class CharityTransactions extends Model
         'bank_response' => 'array',   // 👈 add this
     ];
 
+
+    protected static function booted(): void
+    {
+        static::created(function (CharityTransactions $transaction): void {
+            DB::afterCommit(function () use ($transaction): void {
+                event(new CharityTransactionCreated($transaction->fresh() ?? $transaction));
+            });
+        });
+    }
 
     public function device()
     {

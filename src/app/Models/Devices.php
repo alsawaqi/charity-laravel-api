@@ -2,7 +2,10 @@
 
 namespace App\Models;
 
+use Illuminate\Contracts\Encryption\DecryptException;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Crypt;
 
 class Devices extends Model
 {
@@ -25,14 +28,42 @@ class Devices extends Model
         'commission_profile_id',
         'kiosk_id',
         'terminal_id',
+        'device_code',
+        'bank_username',
+        'bank_password',
         'login_generated_token',
         'status',
         'installed_at',
     ];
 
+    protected $hidden = [
+        'bank_username',
+        'bank_password',
+    ];
+
     protected $casts = [
         'installed_at' => 'date',
     ];
+
+    protected function bankPassword(): Attribute
+    {
+        return Attribute::make(
+            get: function (?string $value): ?string {
+                if (blank($value)) {
+                    return $value;
+                }
+
+                try {
+                    return Crypt::decryptString($value);
+                } catch (DecryptException) {
+                    return $value;
+                }
+            },
+            set: fn (?string $value): ?string => blank($value)
+                ? $value
+                : Crypt::encryptString($value),
+        );
+    }
 
     public function DeviceBrand()
     {
